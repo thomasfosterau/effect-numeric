@@ -1,0 +1,84 @@
+{
+  "name": "effect-numeric",
+  "version": "0.0.0",
+  "description": "Effect-native numeric types: fixed-width integers with checked, wrapping, saturating and overflowing arithmetic, clamped ranges, rationals, complex numbers and num-traits style type classes.",
+  "license": "MIT",
+  "author": "Thomas Foster <me@thomasfoster.au>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thomasfosterau/effect-numeric.git"
+  },
+  "homepage": "https://github.com/thomasfosterau/effect-numeric#readme",
+  "bugs": {
+    "url": "https://github.com/thomasfosterau/effect-numeric/issues"
+  },
+  "keywords": [
+    "effect",
+    "effect-ts",
+    "numeric",
+    "integer",
+    "overflow",
+    "saturating",
+    "wrapping",
+    "checked",
+    "rational",
+    "complex",
+    "num"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "packageManager": "pnpm@10.28.0",
+  "files": [
+    "dist",
+    "src",
+    "!**/*.tsbuildinfo"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./internal/*": null,
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "check:exports": "publint --strict && attw --pack . --profile esm-only",
+    "changeset": "changeset",
+    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile",
+    "changeset:publish": "pnpm build && changeset publish"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.15",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
+    "@effect/vitest": "^4.0.5",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.0.5",
+    "effect": "^4.0.5",
+    "fast-check": "^4.10.2",
+    "publint": "^0.3.25",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
