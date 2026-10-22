@@ -20,6 +20,7 @@ import * as Brand from "effect/Brand"
 import type * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
+import { brandAs } from "./internal/brand.ts"
 import { type Bounded, type Fractional, type Operator, type OrderedNum, operator, type Signed } from "./Num.ts"
 
 /**
@@ -144,42 +145,49 @@ export const makeFloat = <A extends number>(config: {
   readonly maxFinite: number
   readonly nextUp: (n: number) => number
 }): Float<A> => {
-  const r = config.round as (n: number) => A
+  /** Brands a number that is already a value of the type. */
+  const value = (n: number): A =>
+    // SAFETY: every caller passes a number the type represents exactly: the
+    // output of `config.round` or `config.nextUp`, the negation of a value
+    // (exact in IEEE 754), or one of the constants below (0, 1, ±0, ±Infinity,
+    // NaN and the type's own epsilon / minPositive / maxFinite).
+    n as A
+  const r = (n: number): A => value(config.round(n))
   const u =
     (f: (n: number) => number) =>
     (a: A): A =>
       r(f(a))
   const b = (f: (x: number, y: number) => number): Operator<A> => operator((x: A, y: A) => r(f(x, y)))
-  const nextUp = config.nextUp as unknown as (n: A) => A
-  const nextDown = (n: A): A => -nextUp(-n as A) as A
+  const nextUp = (n: A): A => value(config.nextUp(n))
+  const nextDown = (n: A): A => value(-config.nextUp(-n))
   const roundAway = (n: number) => (n < 0 ? -Math.round(-n) : Math.round(n))
   const roundTiesEven = (n: number) => (Math.abs(n % 1) === 0.5 ? 2 * Math.round(n / 2) : Math.round(n))
   return {
     mantissaDigits: config.mantissaDigits,
-    zero: 0 as A,
-    one: 1 as A,
-    nan: Number.NaN as A,
-    infinity: Number.POSITIVE_INFINITY as A,
-    negInfinity: Number.NEGATIVE_INFINITY as A,
-    negZero: -0 as A,
-    epsilon: config.epsilon as A,
-    minPositive: config.minPositive as A,
-    maxFinite: config.maxFinite as A,
-    minValue: Number.NEGATIVE_INFINITY as A,
-    maxValue: Number.POSITIVE_INFINITY as A,
+    zero: value(0),
+    one: value(1),
+    nan: value(Number.NaN),
+    infinity: value(Number.POSITIVE_INFINITY),
+    negInfinity: value(Number.NEGATIVE_INFINITY),
+    negZero: value(-0),
+    epsilon: value(config.epsilon),
+    minPositive: value(config.minPositive),
+    maxFinite: value(config.maxFinite),
+    minValue: value(Number.NEGATIVE_INFINITY),
+    maxValue: value(Number.POSITIVE_INFINITY),
     from: r,
     isZero: (a) => a === 0,
     isOne: (a) => a === 1,
-    Order: totalOrder as Order.Order<A>,
+    Order: totalOrder,
     Equivalence: (x, y) => totalOrder(x, y) === 0,
     add: b((x, y) => x + y),
     sub: b((x, y) => x - y),
     mul: b((x, y) => x * y),
     div: b((x, y) => x / y),
     recip: u((x) => 1 / x),
-    negate: (a) => -a as A,
+    negate: (a) => value(-a),
     abs: u(Math.abs),
-    signum: (a) => (Number.isNaN(a) ? a : ((a > 0 || Object.is(a, 0) ? 1 : -1) as A)),
+    signum: (a) => (Number.isNaN(a) ? a : value(a > 0 || Object.is(a, 0) ? 1 : -1)),
     isNaN: Number.isNaN,
     isFinite: Number.isFinite,
     isInfinite: (a) => a === Number.POSITIVE_INFINITY || a === Number.NEGATIVE_INFINITY,
@@ -304,23 +312,40 @@ const refined = <A extends number & Brand.Brand<any>>(
   message: string,
   ctor: Brand.Constructor<A>
 ): RefinedFloat<A> => {
+  /** Views a plain number as `A`'s unbranded representation. */
+  const unbranded = (n: number): Brand.Brand.Unbranded<A> =>
+    // SAFETY: `A` is `number & Brand<K>`, so its unbranded type is `number`;
+    // TypeScript cannot reduce `Unbranded<A>` for a generic `A`.
+    n as Brand.Brand.Unbranded<A>
   const lift = (f: (x: number, y: number) => number): Operator<A, A, Option.Option<A>> =>
-    operator((x: A, y: A) => ctor.option(f(x, y) as Brand.Brand.Unbranded<A>))
+    operator((x: A, y: A) => ctor.option(unbranded(f(x, y))))
   const extra = {
-    schema: Schema.Number.pipe(
-      Schema.check(Schema.makeFilter((n: number) => ctor.is(n as Brand.Brand.Unbranded<A>) || message)),
-      Schema.brand(name as "Finite"),
-      Schema.annotate({ identifier: name })
-    ) as unknown as Schema.Codec<A, number>,
-    Order: Order.Number as Order.Order<A>,
+    schema: brandAs<A, number>(
+      Schema.Number.pipe(
+        Schema.check(
+          Schema.makeFilter((n: number) => ctor.is(unbranded(n)) || message, {
+            // The identifier names the JSON Schema definition of the encoded number.
+            identifier: `${name}Encoded`,
+            title: name,
+            description: message
+          })
+        )
+      ),
+      name
+    ),
+    Order: Order.Number,
     add: lift((x, y) => x + y),
     sub: lift((x, y) => x - y),
     mul: lift((x, y) => x * y),
     div: lift((x, y) => x / y),
-    map: operator((x: A, f: (n: number) => number) => ctor.option(f(x) as Brand.Brand.Unbranded<A>))
+    map: operator((x: A, f: (n: number) => number) => ctor.option(unbranded(f(x))))
   }
-  const fn = ((n: Brand.Brand.Unbranded<A>) => ctor(n)) as unknown as RefinedFloat<A>
-  return Object.assign(fn, { option: ctor.option, result: ctor.result, is: ctor.is }, extra) as RefinedFloat<A>
+  const self: RefinedFloat<A> = Object.assign(
+    (n: Brand.Brand.Unbranded<A>) => ctor(n),
+    { option: ctor.option, result: ctor.result, is: ctor.is },
+    extra
+  )
+  return self
 }
 
 /**

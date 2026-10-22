@@ -1,8 +1,42 @@
 {
-  "extends": "./tsconfig.base.json",
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
+    // NodeNext, not the effect-web family's `bundler`: the published `.d.ts`
+    // must resolve under the strictest consumer setting, so the source is
+    // held to it too (every relative import carries its `.ts` extension, which
+    // `vp pack` rewrites to `.js`).
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    // `erasableSyntaxOnly` because consumers may load TypeScript under Node's
+    // strip-only loader; enums / namespaces / parameter properties fail there.
+    "erasableSyntaxOnly": true,
+    "strict": true,
+    // Optional members are spelled `?: T | undefined` because of this flag: a
+    // consumer forwarding an optional of its own must still compile.
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // The severities below keep every Effect rule visible in the editor,
+        // but a "warning" still fails the patched tsc by default — this flag
+        // is what actually makes warnings non-blocking in the `check` task.
+        "ignoreEffectWarningsInTscExitCode": true
+      }
+    ]
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "test", "vite.config.ts"]
 }

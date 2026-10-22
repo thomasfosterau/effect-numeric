@@ -1,5 +1,8 @@
-import { describe, expect, it } from "@effect/vitest"
-import { Array as Arr, Option, Result, Schema } from "effect"
+import { describe, expect, it } from "vite-plus/test"
+import * as Arr from "effect/Array"
+import * as Option from "effect/Option"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 import { F32, Float } from "../src/index.ts"
 
 describe("Float.F64", () => {

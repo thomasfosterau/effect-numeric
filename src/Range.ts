@@ -15,6 +15,7 @@
  *
  * @since 0.1.0
  */
+import { evenlySpaced, iterateWhile } from "./internal/iterate.ts"
 import type { OrderedNum } from "./Num.ts"
 
 /**
@@ -25,7 +26,11 @@ import type { OrderedNum } from "./Num.ts"
  */
 export const range = <A>(N: OrderedNum<A>) =>
   function* (start: A, end: A): IterableIterator<A> {
-    for (let x = start; N.Order(x, end) < 0; x = N.add(x, N.one)) yield x
+    yield* iterateWhile(
+      start,
+      (x) => N.Order(x, end) < 0,
+      (x) => N.add(x, N.one)
+    )
   }
 
 /**
@@ -36,7 +41,11 @@ export const range = <A>(N: OrderedNum<A>) =>
  */
 export const rangeInclusive = <A>(N: OrderedNum<A>) =>
   function* (start: A, end: A): IterableIterator<A> {
-    for (let x = start; N.Order(x, end) <= 0; x = N.add(x, N.one)) yield x
+    yield* iterateWhile(
+      start,
+      (x) => N.Order(x, end) <= 0,
+      (x) => N.add(x, N.one)
+    )
   }
 
 /**
@@ -50,7 +59,11 @@ export const rangeStep = <A>(N: OrderedNum<A>) =>
   function* (start: A, end: A, step: A): IterableIterator<A> {
     const dir = N.Order(step, N.zero)
     if (dir === 0) throw new RangeError("Range.rangeStep: step must not be zero")
-    for (let x = start; N.Order(x, end) === -dir; x = N.add(x, step)) yield x
+    yield* iterateWhile(
+      start,
+      (x) => N.Order(x, end) === -dir,
+      (x) => N.add(x, step)
+    )
   }
 
 /**
@@ -64,7 +77,11 @@ export const rangeStepInclusive = <A>(N: OrderedNum<A>) =>
   function* (start: A, end: A, step: A): IterableIterator<A> {
     const dir = N.Order(step, N.zero)
     if (dir === 0) throw new RangeError("Range.rangeStepInclusive: step must not be zero")
-    for (let x = start; N.Order(x, end) !== dir; x = N.add(x, step)) yield x
+    yield* iterateWhile(
+      start,
+      (x) => N.Order(x, end) !== dir,
+      (x) => N.add(x, step)
+    )
   }
 
 /**
@@ -80,5 +97,5 @@ export function* linspace(start: number, end: number, count: number): IterableIt
     yield start
     return
   }
-  for (let k = 0; k < count; k++) yield k === count - 1 ? end : start + ((end - start) * k) / (count - 1)
+  yield* evenlySpaced(start, end, count)
 }

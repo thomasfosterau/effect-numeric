@@ -144,3 +144,12 @@ vite.config.ts.timestamp-*
 
 # Packed tarballs
 *.tgz
+
+# Tooling (Vite+ / fallow / Claude Code)
+.fallow
+fallow.sarif
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+# The generated git-hook runner; the editable hook itself is committed.
+.vite-hooks/_/

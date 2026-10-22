@@ -16,12 +16,14 @@
  *
  * @since 0.1.0
  */
+import * as Arr from "effect/Array"
 import type * as Equivalence from "effect/Equivalence"
 import * as EqvMod from "effect/Equivalence"
 import { dual } from "effect/Function"
 import type * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import { DivisionByZeroError } from "./ArithmeticError.ts"
+import { powBySquaring } from "./internal/iterate.ts"
 
 /**
  * A dual binary operator taking a `Self` and a `That` and returning `Out`.
@@ -178,11 +180,8 @@ export interface ToPrimitive<A> {
  */
 export const sum =
   <A>(N: Num<A>) =>
-  (values: Iterable<A>): A => {
-    let acc = N.zero
-    for (const a of values) acc = N.add(acc, a)
-    return acc
-  }
+  (values: Iterable<A>): A =>
+    Arr.reduce(values, N.zero, (acc, a) => N.add(acc, a))
 
 /**
  * Multiplies all values in an iterable, starting from `one`.
@@ -192,11 +191,8 @@ export const sum =
  */
 export const product =
   <A>(N: Num<A>) =>
-  (values: Iterable<A>): A => {
-    let acc = N.one
-    for (const a of values) acc = N.mul(acc, a)
-    return acc
-  }
+  (values: Iterable<A>): A =>
+    Arr.reduce(values, N.one, (acc, a) => N.mul(acc, a))
 
 /**
  * Raises `self` to a non-negative integer power using exponentiation by
@@ -210,15 +206,7 @@ export const pow = <A>(N: Num<A>): Operator<A, number, A> =>
     if (!Number.isSafeInteger(exp) || exp < 0) {
       throw new RangeError(`pow: exponent must be a non-negative safe integer, got ${exp}`)
     }
-    let result = N.one
-    let base = self
-    let e = exp
-    while (e > 0) {
-      if (e % 2 === 1) result = N.mul(result, base)
-      e = Math.floor(e / 2)
-      if (e > 0) base = N.mul(base, base)
-    }
-    return result
+    return powBySquaring(N.one, (x: A, y: A) => N.mul(x, y), self, exp)
   })
 
 /**

@@ -1,5 +1,9 @@
-import { describe, expect, it } from "@effect/vitest"
-import { Effect, Exit, Option, pipe, Result } from "effect"
+import { describe, expect, it } from "vite-plus/test"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
+import { pipe } from "effect/Function"
+import * as Result from "effect/Result"
 import * as fc from "fast-check"
 import { Checked, I8, I64, Integer, Num, Overflowing, Saturating, U8, U64, Wrapping } from "../src/index.ts"
 
@@ -70,18 +74,20 @@ describe("Overflowing", () => {
 })
 
 describe("Result-returning arithmetic in Effect", () => {
-  it.effect("fails with typed errors", () =>
-    Effect.gen(function* () {
-      const ok = yield* Effect.fromResult(U8.add(U8.make(1), U8.make(2)))
-      expect(ok).toBe(3)
-      const exit = yield* Effect.exit(Effect.fromResult(U8.add(U8.MAX, U8.one)))
-      expect(Exit.isFailure(exit)).toBe(true)
-      const tag = yield* Effect.fromResult(U8.div(U8.one, U8.zero)).pipe(
-        Effect.catchTag("DivisionByZeroError", (e) => Effect.succeed(e.message))
-      )
-      expect(tag).toBe("U8: attempt to divide by zero")
-    })
-  )
+  it("fails with typed errors", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const ok = yield* Effect.fromResult(U8.add(U8.make(1), U8.make(2)))
+        expect(ok).toBe(3)
+        const exit = yield* Effect.exit(Effect.fromResult(U8.add(U8.MAX, U8.one)))
+        expect(Exit.isFailure(exit)).toBe(true)
+        const tag = yield* Effect.fromResult(U8.div(U8.one, U8.zero)).pipe(
+          Effect.catchTag("DivisionByZeroError", (e) => Effect.succeed(e.message))
+        )
+        expect(tag).toBe("U8: attempt to divide by zero")
+      })
+    )
+  })
   it("errors are yieldable and structurally equal", () => {
     const e = Result.getFailure(I8.add(I8.MAX, I8.one))
     expect(Option.map(e, (x) => [x._tag, x.operation, x.type, x.message])).toEqual(

@@ -21,15 +21,19 @@
  *
  * @since 0.1.0
  */
+import * as Effect from "effect/Effect"
 import * as Equal from "effect/Equal"
 import type * as Eqv from "effect/Equivalence"
 import * as Hash from "effect/Hash"
 import * as Option from "effect/Option"
 import type * as Ord from "effect/Order"
 import type { Pipeable } from "effect/Pipeable"
+import * as Predicate from "effect/Predicate"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
+import * as SchemaIssue from "effect/SchemaIssue"
+import * as Str from "effect/String"
 import { DivisionByZeroError } from "./ArithmeticError.ts"
 import * as big from "./internal/bigint.ts"
 import { Value } from "./internal/value.ts"
@@ -49,16 +53,20 @@ export interface Ratio extends Equal.Equal, Pipeable {
   readonly denom: bigint
 }
 
+/** Only `RatioImpl` instances carry `TypeId`, so its presence identifies a {@link Ratio}. */
+const hasTypeId = <T>(u: T): u is T & Ratio => Predicate.hasProperty(u, TypeId)
+
 class RatioImpl extends Value implements Ratio {
   readonly [TypeId] = TypeId
-  constructor(
-    readonly numer: bigint,
-    readonly denom: bigint
-  ) {
+  readonly numer: bigint
+  readonly denom: bigint
+  constructor(numer: bigint, denom: bigint) {
     super()
+    this.numer = numer
+    this.denom = denom
   }
   [Equal.symbol](that: Equal.Equal): boolean {
-    return isRatio(that) && that.numer === this.numer && that.denom === this.denom
+    return hasTypeId(that) && that.numer === this.numer && that.denom === this.denom
   }
   [Hash.symbol](): number {
     return Hash.string(`${this.numer}/${this.denom}`)
@@ -71,32 +79,24 @@ class RatioImpl extends Value implements Ratio {
   }
 }
 
-const gcd = (a: bigint, b: bigint): bigint => {
-  let x = big.abs(a)
-  let y = big.abs(b)
-  while (y !== 0n) [x, y] = [y, x % y]
-  return x
-}
-
 /** Assumes `d !== 0n`. */
 const reduce = (n: bigint, d: bigint): Ratio => {
   if (n === 0n) return zero
-  const g = gcd(n, d)
+  const g = big.gcd(n, d)
   const s = d < 0n ? -g : g
   return new RatioImpl(n / s, d / s)
 }
 
-const toBig = (n: bigint | number, what: string): bigint => {
-  const b = big.toBigIntExact(n)
-  if (b === undefined) throw new RangeError(`Ratio: ${what} must be an integer, got ${n}`)
-  return b
-}
+const toBig = (n: bigint | number, what: string): bigint =>
+  Option.getOrElse(big.toBigIntExact(n), () => {
+    throw new RangeError(`Ratio: ${what} must be an integer, got ${n}`)
+  })
 
 /**
  * @category guards
  * @since 0.1.0
  */
-export const isRatio = (u: unknown): u is Ratio => typeof u === "object" && u !== null && TypeId in u
+export const isRatio = (u: unknown): u is Ratio => hasTypeId(u)
 
 /**
  * @category constants
@@ -182,15 +182,7 @@ export const approximate = (x: number, maxDenominator: bigint = 1_000_000n): Opt
 export const limitDenominator: Operator<Ratio, bigint, Ratio> = operator((self: Ratio, maxDenominator: bigint) => {
   if (maxDenominator < 1n) throw new RangeError("Ratio.limitDenominator: maxDenominator must be at least 1")
   if (self.denom <= maxDenominator) return self
-  let [p0, q0, p1, q1] = [0n, 1n, 1n, 0n]
-  let [n, d] = [self.numer, self.denom]
-  for (;;) {
-    const a = floorDiv(n, d)
-    const q2 = q0 + a * q1
-    if (q2 > maxDenominator) break
-    ;[p0, q0, p1, q1] = [p1, q1, p0 + a * p1, q2]
-    ;[n, d] = [d, n - a * d]
-  }
+  const [p0, q0, p1, q1] = big.convergents(self.numer, self.denom, maxDenominator, floorDiv)
   const k = (maxDenominator - q0) / q1
   const bound1 = reduce(p0 + k * p1, q0 + k * q1)
   const bound2 = reduce(p1, q1)
@@ -216,14 +208,15 @@ export const parse = (input: string): Option.Option<Ratio> => {
   const s = input.trim()
   const slash = s.indexOf("/")
   if (slash >= 0) {
-    const n = big.parse(s.slice(0, slash).trim(), 10)
-    const d = big.parse(s.slice(slash + 1).trim(), 10)
-    return n === undefined || d === undefined || d === 0n ? Option.none() : Option.some(reduce(n, d))
+    return Option.flatMap(
+      Option.all([big.parse(s.slice(0, slash).trim(), 10), big.parse(s.slice(slash + 1).trim(), 10)]),
+      ([n, d]) => (d === 0n ? Option.none() : Option.some(reduce(n, d)))
+    )
   }
   const m = DECIMAL.exec(s)
   if (m === null) return Option.none()
   const [, sign, intPart = "", fracPart = "", expPart] = m
-  if (intPart.length === 0 && fracPart.length === 0) return Option.none()
+  if (Str.isEmpty(intPart) && Str.isEmpty(fracPart)) return Option.none()
   const digits = BigInt(`${intPart}${fracPart}` || "0") * (sign === "-" ? -1n : 1n)
   const exp = (expPart === undefined ? 0 : Number(expPart)) - fracPart.length
   if (!Number.isSafeInteger(exp)) return Option.none()
@@ -496,6 +489,14 @@ export const clamp = (self: Ratio, minimum: Ratio, maximum: Ratio): Ratio =>
 export const schema: Schema.Codec<Ratio> = Schema.declare(isRatio, { identifier: "Ratio" })
 
 /**
+ * The type {@link schema} decodes to.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export type schema = typeof schema.Type
+
+/**
  * Schema decoding a ratio from a string such as `"3/4"`, `"-2"` or `"0.125"`
  * and encoding it as `"numer/denom"`.
  *
@@ -503,12 +504,24 @@ export const schema: Schema.Codec<Ratio> = Schema.declare(isRatio, { identifier:
  * @since 0.1.0
  */
 export const schemaFromString: Schema.Codec<Ratio, string> = Schema.String.pipe(
-  Schema.check(Schema.makeFilter((s: string) => Option.isSome(parse(s)) || "Expected a rational number literal")),
   Schema.decodeTo(schema, {
-    decode: SchemaGetter.transform((s: string) => Option.getOrThrow(parse(s))),
+    decode: SchemaGetter.transformEffect((s: string) =>
+      Option.match(parse(s), {
+        onNone: () => Effect.fail(new SchemaIssue.InvalidValue({ message: "Expected a rational number literal" }, s)),
+        onSome: Effect.succeed
+      })
+    ),
     encode: SchemaGetter.transform(toString)
   })
 )
+
+/**
+ * The type {@link schemaFromString} decodes to.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export type schemaFromString = typeof schemaFromString.Type
 
 // -----------------------------------------------------------------------------
 // instances
@@ -531,8 +544,9 @@ export const Field: OrderedNum<Ratio> & Signed<Ratio> & Fractional<Ratio> = {
   add,
   sub,
   mul,
-  div: operator((a: Ratio, b: Ratio) => Result.getOrThrow(div(a, b))),
-  recip: (self) => Result.getOrThrow(recip(self)),
+  // `make` throws the same `DivisionByZeroError` `div` / `recip` fail with.
+  div: operator((a: Ratio, b: Ratio) => make(a.numer * b.denom, a.denom * b.numer)),
+  recip: (self) => make(self.denom, self.numer),
   negate,
   abs,
   signum: (self) => new RatioImpl(BigInt(sign(self)), 1n)

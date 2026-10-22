@@ -18,8 +18,10 @@ import * as Equal from "effect/Equal"
 import type * as Eqv from "effect/Equivalence"
 import * as Hash from "effect/Hash"
 import type { Pipeable } from "effect/Pipeable"
+import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
+import { powBySquaring } from "./internal/iterate.ts"
 import { Value } from "./internal/value.ts"
 import { type Fractional, type Operator, operator } from "./Num.ts"
 
@@ -40,16 +42,20 @@ export interface Complex extends Equal.Equal, Pipeable {
   readonly im: number
 }
 
+/** Only `ComplexImpl` instances carry `TypeId`, so its presence identifies a {@link Complex}. */
+const hasTypeId = <T>(u: T): u is T & Complex => Predicate.hasProperty(u, TypeId)
+
 class ComplexImpl extends Value implements Complex {
   readonly [TypeId] = TypeId
-  constructor(
-    readonly re: number,
-    readonly im: number
-  ) {
+  readonly re: number
+  readonly im: number
+  constructor(re: number, im: number) {
     super()
+    this.re = re
+    this.im = im
   }
   [Equal.symbol](that: Equal.Equal): boolean {
-    return isComplex(that) && Object.is(that.re, this.re) && Object.is(that.im, this.im)
+    return hasTypeId(that) && Object.is(that.re, this.re) && Object.is(that.im, this.im)
   }
   [Hash.symbol](): number {
     return Hash.combine(Hash.number(this.re))(Hash.number(this.im))
@@ -68,7 +74,7 @@ class ComplexImpl extends Value implements Complex {
  * @category guards
  * @since 0.1.0
  */
-export const isComplex = (u: unknown): u is Complex => typeof u === "object" && u !== null && TypeId in u
+export const isComplex = (u: unknown): u is Complex => hasTypeId(u)
 
 /**
  * @category constructors
@@ -181,15 +187,7 @@ export const sqrt = (a: Complex): Complex => {
 /** Raises to an integer power by repeated squaring. @category math @since 0.1.0 */
 export const powi: Operator<Complex, number, Complex> = operator((a: Complex, n: number) => {
   if (!Number.isSafeInteger(n)) throw new RangeError(`Complex.powi: exponent must be a safe integer, got ${n}`)
-  let result = one
-  let base = n < 0 ? recip(a) : a
-  let e = Math.abs(n)
-  while (e > 0) {
-    if (e % 2 === 1) result = mul(result, base)
-    e = Math.floor(e / 2)
-    if (e > 0) base = mul(base, base)
-  }
-  return result
+  return powBySquaring(one, (x: Complex, y: Complex) => mul(x, y), n < 0 ? recip(a) : a, Math.abs(n))
 })
 
 /** Raises to a real power (principal branch). @category math @since 0.1.0 */
@@ -271,6 +269,14 @@ export const toString = (a: Complex): string => a.toString()
 export const schema: Schema.Codec<Complex> = Schema.declare(isComplex, { identifier: "Complex" })
 
 /**
+ * The type {@link schema} decodes to.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export type schema = typeof schema.Type
+
+/**
  * Schema encoding a complex number as `{ re, im }`.
  *
  * @category schemas
@@ -285,6 +291,14 @@ export const schemaFromStruct: Schema.Codec<Complex, { readonly re: number; read
     encode: SchemaGetter.transform((c: Complex) => ({ re: c.re, im: c.im }))
   })
 )
+
+/**
+ * The type {@link schemaFromStruct} decodes to.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export type schemaFromStruct = typeof schemaFromStruct.Type
 
 /**
  * Type class instance for complex numbers.

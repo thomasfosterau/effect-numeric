@@ -1,5 +1,6 @@
-import { describe, expect, it } from "@effect/vitest"
-import { Equal, Schema } from "effect"
+import { describe, expect, it } from "vite-plus/test"
+import * as Equal from "effect/Equal"
+import * as Schema from "effect/Schema"
 import { Complex, Num } from "../src/index.ts"
 
 const close = Complex.approxEquals(1e-9)

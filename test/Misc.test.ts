@@ -1,7 +1,7 @@
 import { inspect } from "node:util"
-import { describe, expect, it } from "@effect/vitest"
-import { Option } from "effect"
+import { describe, expect, it } from "vite-plus/test"
 import { ArithmeticError, Complex, Float, I8, Ratio, U8 } from "../src/index.ts"
+import { getFailure } from "./helpers.ts"
 
 describe("value objects", () => {
   it("are pipeable and inspectable", () => {
@@ -20,16 +20,11 @@ describe("value objects", () => {
 
 describe("ArithmeticError", () => {
   it("guards", () => {
-    const e = Option.getOrThrow(
-      Option.flatMap(Option.some(I8.add(I8.MAX, I8.one)), (r) =>
-        r._tag === "Failure" ? Option.some(r.failure) : Option.none()
-      )
-    )
+    const e = getFailure(I8.add(I8.MAX, I8.one))
     expect(ArithmeticError.isArithmeticError(e)).toBe(true)
-    expect(ArithmeticError.isArithmeticError(new Error("x"))).toBe(false)
+    expect(ArithmeticError.isArithmeticError(new RangeError("x"))).toBe(false)
     expect(e).toBeInstanceOf(Error)
-    const parse = U8.parse("zz")
-    expect(parse._tag === "Failure" && ArithmeticError.isArithmeticError(parse.failure)).toBe(true)
+    expect(ArithmeticError.isArithmeticError(getFailure(U8.parse("zz")))).toBe(true)
   })
 })
 

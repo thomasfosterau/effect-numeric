@@ -9,7 +9,7 @@ import { pipeArguments } from "effect/Pipeable"
  */
 export abstract class Value {
   pipe() {
-    // biome-ignore lint/complexity/noArguments: pipeArguments expects IArguments
+    // `pipeArguments` takes the `arguments` object itself (Effect's Pipeable idiom).
     return pipeArguments(this, arguments)
   }
   abstract toString(): string

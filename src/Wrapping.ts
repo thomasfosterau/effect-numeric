@@ -17,6 +17,7 @@
  *
  * @since 0.1.0
  */
+import * as Arr from "effect/Array"
 import type * as FixedInt from "./FixedInt.ts"
 import * as I8_ from "./I8.ts"
 import * as I16_ from "./I16.ts"
@@ -103,11 +104,8 @@ export const make = <A extends number | bigint>(T: FixedInt.FixedInt<A, any>): W
  */
 export const sum =
   <A>(T: WrappingOps<A> & { readonly zero: A }) =>
-  (values: Iterable<A>): A => {
-    let acc = T.zero
-    for (const a of values) acc = T.wrappingAdd(acc, a)
-    return acc
-  }
+  (values: Iterable<A>): A =>
+    Arr.reduce(values, T.zero, (acc, a) => T.wrappingAdd(acc, a))
 
 /**
  * Wrapping arithmetic for `I8` (Rust's `Wrapping<i8>`).
