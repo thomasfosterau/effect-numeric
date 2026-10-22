@@ -225,9 +225,9 @@ Every module is available from the package root and as a subpath import (`effect
 ## Links
 
 - [API surface by module](#modules): every export carries a doc comment with `@since` and, for constructors, an `@example`.
-- [CHANGELOG.md](https://github.com/thomasfosterau/effect-numeric/blob/main/CHANGELOG.md): release notes, written by changesets.
-- [CONTRIBUTING.md](https://github.com/thomasfosterau/effect-numeric/blob/main/CONTRIBUTING.md): development setup and checks.
-- [SECURITY.md](https://github.com/thomasfosterau/effect-numeric/blob/main/SECURITY.md): reporting a vulnerability.
+- [CHANGELOG.md](https://github.com/thomasfosterau/effect-numeric/blob/trunk/CHANGELOG.md): release notes, written by changesets.
+- [CONTRIBUTING.md](https://github.com/thomasfosterau/effect-numeric/blob/trunk/CONTRIBUTING.md): development setup and checks.
+- [SECURITY.md](https://github.com/thomasfosterau/effect-numeric/blob/trunk/SECURITY.md): reporting a vulnerability.
 
 ## License
 

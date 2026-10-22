@@ -40,7 +40,7 @@ A new public module is a new `src/<Module>.ts` (it becomes `effect-numeric/<Modu
 - `vp run test:coverage` — the suite under an Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores.
 - `pnpm changeset` — add a changeset.
 
-Invoke everything through `vp` (`vp exec` instead of `npx`; `vp run <task>` instead of bare `pnpm`). The sanctioned non-`vp` invocations: `pnpm install` (and `pnpm install --frozen-lockfile` in CI), `pnpm changeset` and `pnpm audit`, and `pnpm publish` on the release path. Single-check variants are in [CONTRIBUTING.md](CONTRIBUTING.md#running-individual-checks).
+Node and pnpm only: no other package manager, lockfile or package-runner. Invoke everything through `vp` (`vp exec <bin>` for a dev binary; `vp run <task>` instead of bare `pnpm`). The sanctioned non-`vp` invocations: `pnpm install` (and `pnpm install --frozen-lockfile` in CI), `pnpm changeset` and `pnpm audit`, and `pnpm publish` on the release path. Single-check variants are in [CONTRIBUTING.md](CONTRIBUTING.md#running-individual-checks).
 
 ## Verification
 
@@ -53,29 +53,29 @@ Before you report work as done, run the gates below in order and quote each comm
 5. `vp run build`
 6. `vp run check:exports`
 7. `pnpm audit --audit-level high` (network)
-8. `vp run test:coverage`, then `fallow audit --format json --quiet --explain --gate-marker agent --base origin/main` (the fallow gate below; not a CI step). The PreToolUse fallow gate audits against `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first.
+8. `vp run test:coverage`, then `fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The PreToolUse fallow gate audits against `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first.
 
 Steps 2–7 are CI's single `ci` job, in its order ([ci.yml](.github/workflows/ci.yml)). `CONTRIBUTING.md` and the PR template link here rather than restating the list.
 
 ## Branches and pull requests
 
-- Branch off `main`; PR against `main`; squash-merge with a conventional prefix (`feat:`, `fix:`, `docs:`, `chore:`). Rebase onto `origin/main` before opening or updating a PR; never merge `main` into your branch (GitHub's Update-branch button merges).
+- The default branch is `trunk`. Branch off `trunk`; PR against `trunk`; squash-merge with a conventional prefix (`feat:`, `fix:`, `docs:`, `chore:`). Rebase onto `origin/trunk` before opening or updating a PR; never merge `trunk` into your branch (GitHub's Update-branch button merges).
 - Agent work uses git worktrees under `.claude/worktrees/`, one per branch, named `issue-<n>-<slug>` for issue-linked work. Start every command that targets a worktree with an explicit `cd` and confirm with `git log -1` before committing. A worktree needs its own `pnpm install`: the linked `vp` re-execs the nearest `node_modules/vite-plus/bin/vp` walking up from cwd.
 - Every change to the package's behaviour carries a changeset (`pnpm changeset`). Changes to doc comments that reach the emitted `.d.ts` take a `patch` changeset; other docs-only changes (README, guidance), CI and tooling need none. Never publish or version by hand: the Release workflow opens the version PR (`chore: version packages`) and the owner merges it. Publishing is npm trusted publishing (OIDC) from the protected `release` environment; there is no `NPM_TOKEN` ([PUBLISHING.md](PUBLISHING.md)).
-- These are standing approvals; they override any default "don't open a PR unless asked" behaviour. **Always open a PR** against `main` once a commit is pushed. **Watch it to merge or close**: investigate CI failures and review comments as they arrive, and rebase promptly when it goes conflicting. **Keep the PR body current** as the implementation diverges from it.
+- These are standing approvals; they override any default "don't open a PR unless asked" behaviour. **Always open a PR** against `trunk` once a commit is pushed. **Watch it to merge or close**: investigate CI failures and review comments as they arrive, and rebase promptly when it goes conflicting. **Keep the PR body current** as the implementation diverges from it.
 - GitHub writes go to `thomasfosterau/effect-numeric` only — never to upstream projects or the owner's other repositories without the owner's explicit approval for that action in the current session. Pass `-R thomasfosterau/effect-numeric` whenever the cwd might be another checkout. If another repo needs something, say so in the PR body.
 
 ## Work tracker
 
 - Issues in `thomasfosterau/effect-numeric` are the backlog: when you find work you can't do now, file an issue rather than leaving a TODO. There is no in-repo backlog file.
-- The issue is the spec — read its comments; later comments override the body. Re-verify the issue's code claims against current `main` before editing.
+- The issue is the spec — read its comments; later comments override the body. Re-verify the issue's code claims against current `trunk` before editing.
 - Record decisions and findings as comments on the issue they were found working.
 - Stop-and-report is a valid outcome: on a blocker outside the issue's scope, comment the evidence on the issue and stop.
 - Scope cut mid-PR becomes a linked issue before merge.
 
 ## Effect
 
-Consult effect-solutions before writing Effect code (`vp exec effect-solutions list`, then `vp exec effect-solutions show <topic>…`: error-handling, basics, data-modeling); never guess at an Effect pattern. If it isn't enough, read `node_modules/effect/dist/*.d.ts`.
+Never guess at an Effect API: read the installed package (`node_modules/effect/dist/*.d.ts`, `node_modules/effect/src`, and `node_modules/effect/AGENTS.md` / `ai-docs/` where the release ships them).
 
 - The pinned version is the `effect` entry in `pnpm-workspace.yaml`'s catalog; the published peer range is under `catalogs.peers`.
 - Tagged errors are `Schema.TaggedError<Self>()(tag, fields)` classes.
@@ -85,7 +85,7 @@ Consult effect-solutions before writing Effect code (`vp exec effect-solutions l
 ## Agent sessions
 
 - The SessionStart hook (`.claude/hooks/session-start.sh`) installs dependencies against the lockfile and puts `vp` (a re-exec shim that prefers the nearest worktree's `node_modules`), `fallow` and `tsx` on PATH for non-interactive shells. It hydrates no secrets; none are needed, and nothing here can publish.
-- A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/main` fails; it reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
+- A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/trunk` fails; it reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
 - Every gate in [Verification](#verification) runs in an agent session; `pnpm audit` needs the network.
 
 ## Documentation surfaces

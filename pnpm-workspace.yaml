@@ -36,7 +36,6 @@ catalog:
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.5
-  effect-solutions: ^0.5.3
   fallow: 3.34.1
   fast-check: ^4.10.2
   publint: ^0.3.25
