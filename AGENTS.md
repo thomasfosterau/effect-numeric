@@ -80,7 +80,8 @@ Never guess at an Effect API: read the installed package (`node_modules/effect/d
 - The pinned version is the `effect` entry in `pnpm-workspace.yaml`'s catalog; the published peer range is under `catalogs.peers`.
 - Tagged errors are `Schema.TaggedError<Self>()(tag, fields)` classes.
 - Import Effect modules by name (`import * as Option from "effect/Option"`), not from the `effect` barrel; the lint preset enforces it.
-- `effect/imperative-loops` is off only under `src/internal/**`, where the scalar kernels (Euclid, Newton, square-and-multiply, Miller–Rabin, lazy range generators) live; collection code elsewhere uses `Array` combinators. The reason is recorded on the override in `vite.config.ts`.
+- `effect/imperative-loops` is off only under `src/internal/**`, where the scalar kernels (Euclid, Newton, square-and-multiply, Miller–Rabin, lazy range generators) live; collection code elsewhere uses `Array` combinators. Brand casts go through `src/internal/brand.ts` or a local helper with a `// SAFETY:` comment. Every scoped lint override in `vite.config.ts` records why the rule cannot apply there; never add an inline disable comment.
+- Tests run effects with `await Effect.runPromise(...)` (the test body is the runtime boundary) and unwrap `Option` / `Result` with `test/helpers.ts`, never `getOrThrow`.
 
 ## Agent sessions
 
