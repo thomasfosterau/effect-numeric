@@ -521,6 +521,19 @@ const build = <A extends R, R extends number | bigint>(
     const r = P.rem(a, b)
     return isNeg(r) ? (isNeg(b) ? P.sub(r, b) : P.add(r, b)) : r
   }
+  /**
+   * The strict form of a remainder `f`: fails on a zero divisor, and on
+   * `MIN % -1` (whose quotient overflows, so Rust reports the remainder as
+   * overflowing too).
+   */
+  const strictRemainder =
+    (f: (a: R, b: R) => R) =>
+    (a: A, b: A): Result.Result<A, DivisionByZeroError | OverflowError> =>
+      isZero(b)
+        ? Result.fail(divByZero("calculate the remainder"))
+        : isMinByNegOne(a, b)
+          ? Result.fail(overflow("calculate the remainder"))
+          : Result.succeed(inRangeByConstruction(f(a, b)))
   const absR = (a: R): R => (isNeg(a) ? P.sub(P.zero, a) : a)
 
   // --- pow ---------------------------------------------------------------------
@@ -622,23 +635,11 @@ const build = <A extends R, R extends number | bigint>(
     sub: operator((a: A, b: A) => strict("subtract")(P.sub(a, b))),
     mul: operator((a: A, b: A) => strict("multiply")(P.mul(a, b))),
     div: operator((a: A, b: A) => (isZero(b) ? Result.fail(divByZero("divide")) : strict("divide")(P.quot(a, b)))),
-    rem: operator((a: A, b: A) =>
-      isZero(b)
-        ? Result.fail(divByZero("calculate the remainder"))
-        : isMinByNegOne(a, b)
-          ? Result.fail(overflow("calculate the remainder"))
-          : Result.succeed(inRangeByConstruction(P.rem(a, b)))
-    ),
+    rem: operator(strictRemainder(P.rem)),
     divEuclid: operator((a: A, b: A) =>
       isZero(b) ? Result.fail(divByZero("divide")) : strict("divide")(euclidQuot(a, b))
     ),
-    remEuclid: operator((a: A, b: A) =>
-      isZero(b)
-        ? Result.fail(divByZero("calculate the remainder"))
-        : isMinByNegOne(a, b)
-          ? Result.fail(overflow("calculate the remainder"))
-          : Result.succeed(inRangeByConstruction(euclidRem(a, b)))
-    ),
+    remEuclid: operator(strictRemainder(euclidRem)),
     neg: (a) => strict("negate")(P.sub(P.zero, a)),
     abs: (a) => strict("take the absolute value")(absR(a)),
     pow: operator((a: A, exp: number): Result.Result<A, ArithmeticError> => {

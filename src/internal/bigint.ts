@@ -1,3 +1,4 @@
+import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Str from "effect/String"
@@ -159,29 +160,48 @@ export const gcd = (a: bigint, b: bigint): bigint => {
 
 const SMALL_PRIMES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n]
 
-/** Miller–Rabin over the first 13 primes as witnesses. @internal */
-export const isPrime = (n: bigint): boolean => {
-  if (n < 2n) return false
-  for (const p of SMALL_PRIMES) {
-    if (n === p) return true
-    if (n % p === 0n) return false
-  }
+/**
+ * Trial division by the small primes: `Some(verdict)` when it settles `n`
+ * (`n >= 2`), `None` when Miller–Rabin has to decide.
+ */
+const smallPrimeVerdict = (n: bigint): Option.Option<boolean> =>
+  Option.match(
+    Arr.findFirst(SMALL_PRIMES, (p) => n === p || n % p === 0n),
+    {
+      onNone: () => Option.none(),
+      onSome: (p) => Option.some(n === p)
+    }
+  )
+
+/** `n - 1 = d * 2^s` with `d` odd, for odd `n >= 3`. */
+const oddPart = (n: bigint): readonly [d: bigint, s: number] => {
   let d = n - 1n
   let s = 0
   while ((d & 1n) === 0n) {
     d >>= 1n
     s++
   }
-  outer: for (const a of SMALL_PRIMES) {
-    let x = modPow(a, d, n)
-    if (x === 1n || x === n - 1n) continue
-    for (let i = 1; i < s; i++) {
-      x = (x * x) % n
-      if (x === n - 1n) continue outer
-    }
-    return false
+  return [d, s]
+}
+
+/** Whether `n` passes the Miller–Rabin round for witness `a` (`n - 1 = d * 2^s`). */
+const passesWitness = (n: bigint, d: bigint, s: number, a: bigint): boolean => {
+  let x = modPow(a, d, n)
+  if (x === 1n || x === n - 1n) return true
+  for (let i = 1; i < s; i++) {
+    x = (x * x) % n
+    if (x === n - 1n) return true
   }
-  return true
+  return false
+}
+
+/** Miller–Rabin over the first 13 primes as witnesses. @internal */
+export const isPrime = (n: bigint): boolean => {
+  if (n < 2n) return false
+  return Option.getOrElse(smallPrimeVerdict(n), () => {
+    const [d, s] = oddPart(n)
+    return Arr.every(SMALL_PRIMES, (a) => passesWitness(n, d, s, a))
+  })
 }
 
 /**

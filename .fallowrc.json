@@ -49,6 +49,13 @@
       { "from": "test", "allow": ["src"] }
     ]
   },
+  "duplicates": {
+    // Reviewed clones: the per-type instance lists (`I8` … `U128`, one
+    // documented export each) that Saturating / Wrapping and Checked /
+    // Overflowing each expose, mirroring Rust's per-type impls. A content
+    // change produces a new fingerprint and makes the group reportable again.
+    "ignoredClones": ["dup:f9ce9582:2", "dup:9f19c111:2"]
+  },
   "health": {
     "maxCyclomatic": 20,
     "maxCognitive": 15,
