@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Option } from "effect"
 import { Integer, Num, Ratio } from "../src/index.ts"
 

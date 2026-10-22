@@ -51,11 +51,12 @@ export interface Ratio extends Equal.Equal, Pipeable {
 
 class RatioImpl extends Value implements Ratio {
   readonly [TypeId] = TypeId
-  constructor(
-    readonly numer: bigint,
-    readonly denom: bigint
-  ) {
+  readonly numer: bigint
+  readonly denom: bigint
+  constructor(numer: bigint, denom: bigint) {
     super()
+    this.numer = numer
+    this.denom = denom
   }
   [Equal.symbol](that: Equal.Equal): boolean {
     return isRatio(that) && that.numer === this.numer && that.denom === this.denom

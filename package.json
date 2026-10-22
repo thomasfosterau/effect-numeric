@@ -1,38 +1,40 @@
 {
+  "$schema": "https://www.schemastore.org/package",
   "name": "effect-numeric",
   "version": "0.0.0",
   "description": "Effect-native numeric types: fixed-width integers with checked, wrapping, saturating and overflowing arithmetic, clamped ranges, rationals, complex numbers and num-traits style type classes.",
+  "keywords": [
+    "checked",
+    "complex",
+    "effect",
+    "effect-ts",
+    "integer",
+    "num",
+    "numeric",
+    "overflow",
+    "rational",
+    "saturating",
+    "wrapping"
+  ],
+  "homepage": "https://github.com/thomasfosterau/effect-numeric#readme",
+  "bugs": {
+    "url": "https://github.com/thomasfosterau/effect-numeric/issues"
+  },
   "license": "MIT",
   "author": "Thomas Foster <me@thomasfoster.au>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/thomasfosterau/effect-numeric.git"
   },
-  "homepage": "https://github.com/thomasfosterau/effect-numeric#readme",
-  "bugs": {
-    "url": "https://github.com/thomasfosterau/effect-numeric/issues"
-  },
-  "keywords": [
-    "effect",
-    "effect-ts",
-    "numeric",
-    "integer",
-    "overflow",
-    "saturating",
-    "wrapping",
-    "checked",
-    "rational",
-    "complex",
-    "num"
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
   "sideEffects": false,
-  "packageManager": "pnpm@10.28.0",
-  "files": [
-    "dist",
-    "src",
-    "!**/*.tsbuildinfo"
-  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -45,40 +47,44 @@
     "./internal/*": null,
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "coverage": "vitest run --coverage",
-    "check:exports": "publint --strict && attw --pack . --profile esm-only",
     "changeset": "changeset",
-    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile",
-    "changeset:publish": "pnpm build && changeset publish"
-  },
-  "peerDependencies": {
-    "effect": "^4.0.0"
+    "version": "changeset version && vp fmt && pnpm install --lockfile-only",
+    "release": "vp run build && pnpm publish --access public --no-git-checks --ignore-scripts && changeset tag",
+    "fallow": "fallow --summary",
+    "fallow:audit": "fallow audit",
+    "prepare": "vp config && effect-tsgo patch --typescript --oxlint"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.5",
-    "@biomejs/biome": "^2.5.15",
-    "@changesets/changelog-github": "^1.0.1",
-    "@changesets/cli": "^3.0.3",
-    "@effect/vitest": "^4.0.5",
-    "@types/node": "^22.20.5",
-    "@vitest/coverage-v8": "^5.0.5",
-    "effect": "^4.0.5",
-    "fast-check": "^4.10.2",
-    "publint": "^0.3.25",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
-  }
+    "@arethetypeswrong/cli": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@effect/language-service": "catalog:",
+    "@effect/tsgo": "catalog:",
+    "@mpsuesser/oxlint-plugin-effect": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "@vitest/coverage-istanbul": "catalog:",
+    "effect": "catalog:",
+    "effect-solutions": "catalog:",
+    "fallow": "catalog:",
+    "fast-check": "catalog:",
+    "publint": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "effect": "catalog:peers"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.28.6"
 }

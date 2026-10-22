@@ -1,5 +1,5 @@
 // Keeps the examples in README.md honest.
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Array as Arr, Effect, Equal, Option, pipe, Result, Schema } from "effect"
 import {
   Checked,
@@ -40,17 +40,18 @@ describe("README", () => {
     expect(Schema.decodeUnknownSync(U64.schemaFromString)("18446744073709551615")).toBe(U64.MAX)
   })
 
-  it.effect("Effect integration", () =>
-    Effect.gen(function* () {
-      const a = U8.make(200)
-      const b = U8.make(100)
-      const program = Effect.gen(function* () {
-        const total = yield* Effect.fromResult(U8.add(a, b))
-        return total
-      }).pipe(Effect.catchTag("OverflowError", () => Effect.succeed(U8.MAX)))
-      expect(yield* program).toBe(255)
-    })
-  )
+  it("Effect integration", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const a = U8.make(200)
+        const b = U8.make(100)
+        const program = Effect.gen(function* () {
+          const total = yield* Effect.fromResult(U8.add(a, b))
+          return total
+        }).pipe(Effect.catchTag("OverflowError", () => Effect.succeed(U8.MAX)))
+        expect(yield* program).toBe(255)
+      })
+    ))
 
   it("strategies", () => {
     expect(Wrapping.U8.add(U8.make(250), U8.make(10))).toBe(4)

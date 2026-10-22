@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Equal, HashSet, Option, pipe, Result, Schema } from "effect"
 import * as fc from "fast-check"
 import { Float, Ratio } from "../src/index.ts"

@@ -62,14 +62,7 @@ export interface Spec {
  * @since 0.1.0
  */
 export interface FixedInt<A extends R, R extends number | bigint = number | bigint>
-  extends Spec,
-    Zero<A>,
-    One<A>,
-    Bounded<A>,
-    CheckedOps<A>,
-    WrappingOps<A>,
-    SaturatingOps<A>,
-    OverflowingOps<A> {
+  extends Spec, Zero<A>, One<A>, Bounded<A>, CheckedOps<A>, WrappingOps<A>, SaturatingOps<A>, OverflowingOps<A> {
   /** The runtime representation, `"number"` or `"bigint"`. */
   readonly repr: R extends bigint ? "bigint" : "number"
   /** The smallest value of the type. */
@@ -648,21 +641,19 @@ const build = <A extends R, R extends number | bigint>(
       const exact = powExact(a, exp)
       return powFits(exact) ? Result.succeed(P.fromBig(exact) as A) : Result.fail(overflow("pow"))
     }),
-    shl: operator(
-      (a: A, n: number): Result.Result<A, ArithmeticError> =>
-        !big.isNonNegativeInteger(n)
-          ? Result.fail(domain("shift left", `shift amount must be a non-negative integer, got ${n}`))
-          : n >= bits
-            ? Result.fail(overflow("shift left"))
-            : Result.succeed(P.shl(a, n) as A)
+    shl: operator((a: A, n: number): Result.Result<A, ArithmeticError> =>
+      !big.isNonNegativeInteger(n)
+        ? Result.fail(domain("shift left", `shift amount must be a non-negative integer, got ${n}`))
+        : n >= bits
+          ? Result.fail(overflow("shift left"))
+          : Result.succeed(P.shl(a, n) as A)
     ),
-    shr: operator(
-      (a: A, n: number): Result.Result<A, ArithmeticError> =>
-        !big.isNonNegativeInteger(n)
-          ? Result.fail(domain("shift right", `shift amount must be a non-negative integer, got ${n}`))
-          : n >= bits
-            ? Result.fail(overflow("shift right"))
-            : Result.succeed(P.shr(a, n) as A)
+    shr: operator((a: A, n: number): Result.Result<A, ArithmeticError> =>
+      !big.isNonNegativeInteger(n)
+        ? Result.fail(domain("shift right", `shift amount must be a non-negative integer, got ${n}`))
+        : n >= bits
+          ? Result.fail(overflow("shift right"))
+          : Result.succeed(P.shr(a, n) as A)
     ),
     isqrt,
     ilog2: (a) => ilogImpl(a, 2n, "ilog2"),

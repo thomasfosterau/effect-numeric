@@ -42,11 +42,12 @@ export interface Complex extends Equal.Equal, Pipeable {
 
 class ComplexImpl extends Value implements Complex {
   readonly [TypeId] = TypeId
-  constructor(
-    readonly re: number,
-    readonly im: number
-  ) {
+  readonly re: number
+  readonly im: number
+  constructor(re: number, im: number) {
     super()
+    this.re = re
+    this.im = im
   }
   [Equal.symbol](that: Equal.Equal): boolean {
     return isComplex(that) && Object.is(that.re, this.re) && Object.is(that.im, this.im)

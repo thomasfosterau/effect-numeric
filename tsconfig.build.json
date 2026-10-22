@@ -1,11 +1,10 @@
 {
-  "extends": "./tsconfig.base.json",
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
+  // The declaration build `vp pack` (tsdown) runs: `src` only, so the emitted
+  // `.d.ts` never references test-only types.
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "types": [],
     "stripInternal": true
   },
   "include": ["src"]

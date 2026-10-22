@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Equal, Schema } from "effect"
 import { Complex, Num } from "../src/index.ts"
 

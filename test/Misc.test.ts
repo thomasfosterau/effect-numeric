@@ -1,5 +1,5 @@
 import { inspect } from "node:util"
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Option } from "effect"
 import { ArithmeticError, Complex, Float, I8, Ratio, U8 } from "../src/index.ts"
 
