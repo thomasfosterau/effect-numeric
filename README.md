@@ -12,7 +12,7 @@ Numeric types for [Effect](https://effect.website), modelled on Rust's [`num`](h
 - **`Complex`**: complex numbers over doubles.
 - **Type classes** in the style of `num-traits` (`Num`, `Integral`, `Signed`, `Bounded`, `Fractional`, `CheckedOps`, `WrappingOps`, …), plus generic algorithms from `num-integer` and `num-iter`.
 
-Everything is Effect-native: values are `Brand`ed, failures are tagged `Data.TaggedError`s carried in `Result` / `Option`, every type ships a `Schema`, `Order` and `Equivalence`, value objects implement `Equal` / `Hash`, and all binary functions are dual (data-first or `pipe`-able).
+Everything is Effect-native: values are `Brand`ed, failures are `Schema.TaggedError`s (yieldable, structurally equal, encodable) carried in `Result` / `Option`, every type ships a `Schema`, `Order` and `Equivalence`, value objects implement `Equal` / `Hash`, and all binary functions are dual (data-first or `pipe`-able).
 
 ## Installation
 
