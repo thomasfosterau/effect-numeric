@@ -22,6 +22,7 @@ import * as I16_ from "./I16.ts"
 import * as I32_ from "./I32.ts"
 import * as I64_ from "./I64.ts"
 import * as I128_ from "./I128.ts"
+import { foldWhileSome } from "./internal/iterate.ts"
 import type { One, Operator, Zero } from "./Num.ts"
 import * as U8_ from "./U8.ts"
 import * as U16_ from "./U16.ts"
@@ -82,15 +83,8 @@ export interface Checked<A> {
  */
 export const sum =
   <A>(T: CheckedOps<A> & Zero<A>) =>
-  (values: Iterable<A>): Option.Option<A> => {
-    let acc = T.zero
-    for (const a of values) {
-      const next = T.checkedAdd(acc, a)
-      if (Option.isNone(next)) return next
-      acc = next.value
-    }
-    return Option.some(acc)
-  }
+  (values: Iterable<A>): Option.Option<A> =>
+    foldWhileSome(values, T.zero, (acc, a) => T.checkedAdd(acc, a))
 
 /**
  * Multiplies an iterable with checked multiplication, short-circuiting on
@@ -101,15 +95,8 @@ export const sum =
  */
 export const product =
   <A>(T: CheckedOps<A> & One<A>) =>
-  (values: Iterable<A>): Option.Option<A> => {
-    let acc = T.one
-    for (const a of values) {
-      const next = T.checkedMul(acc, a)
-      if (Option.isNone(next)) return next
-      acc = next.value
-    }
-    return Option.some(acc)
-  }
+  (values: Iterable<A>): Option.Option<A> =>
+    foldWhileSome(values, T.one, (acc, a) => T.checkedMul(acc, a))
 
 /**
  * Builds a {@link Checked} instance from a fixed-width integer module.

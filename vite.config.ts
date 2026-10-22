@@ -90,6 +90,55 @@ export default defineConfig({
           "effect/avoid-process-env": "off",
           "effect/no-conditional-empty-object-spread": "off"
         }
+      },
+      // The numeric kernels (Euclid, Newton's method, square-and-multiply,
+      // Miller–Rabin, continued fractions, the lazy range generators). Each
+      // iterates a scalar state until a numeric condition holds; there is no
+      // collection to map or fold, and the iteration count is unknown up
+      // front, so an `Arr` combinator would first have to materialise one.
+      // Recursion is no alternative: JavaScript has no tail calls, so it would
+      // bound the inputs by stack depth. The generators must stay lazy, since
+      // a range may be unbounded. Public modules call these kernels, so a loop
+      // anywhere else is still an error.
+      {
+        files: ["src/internal/**"],
+        rules: {
+          "effect/imperative-loops": "off"
+        }
+      },
+      // `Clamped.Options.name` is an optional member of a plain options bag,
+      // spelled `?: string | undefined` because the package compiles with
+      // `exactOptionalPropertyTypes`: that is the only spelling a caller can
+      // forward an optional of its own into. `prefer-option-over-null` reads
+      // the `| undefined` as a nullable return; an `Option` in an options bag
+      // would only make every caller wrap a string.
+      {
+        files: ["src/Clamped.ts"],
+        rules: {
+          "effect/prefer-option-over-null": "off"
+        }
+      },
+      // `no-service-constructor-imports` matches the `make*` name of
+      // `Float.makeFloat`, the internal builder of a `Float` type-class
+      // instance (a plain record of functions). There is no Effect service,
+      // Layer or requirement involved for the rule to redirect to.
+      {
+        files: ["src/F32.ts"],
+        rules: {
+          "effect/no-service-constructor-imports": "off"
+        }
+      },
+      // `brandAs` is the one place a validated schema is retyped as a
+      // caller-chosen brand `A`. TypeScript cannot relate a generic `A` to
+      // `Schema.brand`'s output type, so the retyping must step through
+      // `unknown`; there is no untrusted input to decode instead (the schema's
+      // own checks are the validation). Every other module calls `brandAs`.
+      {
+        files: ["src/internal/brand.ts"],
+        rules: {
+          "effect/avoid-any": "off",
+          "effect/no-chained-type-assertions": "off"
+        }
       }
     ],
     // Type-aware linting is intentionally disabled: type checking stays the

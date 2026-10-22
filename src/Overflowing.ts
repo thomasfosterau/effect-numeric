@@ -12,6 +12,7 @@
  *
  * @since 0.1.0
  */
+import * as Arr from "effect/Array"
 import type * as FixedInt from "./FixedInt.ts"
 import * as I8_ from "./I8.ts"
 import * as I16_ from "./I16.ts"
@@ -77,16 +78,11 @@ export interface Overflowing<A> {
  */
 export const sum =
   <A>(T: OverflowingOps<A> & { readonly zero: A }) =>
-  (values: Iterable<A>): readonly [A, boolean] => {
-    let acc = T.zero
-    let overflowed = false
-    for (const a of values) {
+  (values: Iterable<A>): readonly [A, boolean] =>
+    Arr.reduce<A, readonly [A, boolean]>(values, [T.zero, false], ([acc, overflowed], a) => {
       const [next, o] = T.overflowingAdd(acc, a)
-      acc = next
-      overflowed ||= o
-    }
-    return [acc, overflowed]
-  }
+      return [next, overflowed || o]
+    })
 
 /**
  * Builds an {@link Overflowing} instance from a fixed-width integer module.

@@ -29,13 +29,17 @@
  * @since 0.1.0
  */
 import type * as Brand from "effect/Brand"
+import * as Effect from "effect/Effect"
 import * as Equivalence from "effect/Equivalence"
 import * as Option from "effect/Option"
 import * as Order from "effect/Order"
+import * as Predicate from "effect/Predicate"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
+import * as SchemaIssue from "effect/SchemaIssue"
 import { DivisionByZeroError, DomainError, OutOfRangeError } from "./ArithmeticError.ts"
+import { brandAs } from "./internal/brand.ts"
 import { type Bounded, type Operator, operator } from "./Num.ts"
 
 /**
@@ -200,51 +204,68 @@ const build = <A extends number>(options: Options<number, number>, integer: bool
   const width = max - min
   const isMember = (n: number) => n >= min && n <= max && (!integer || Number.isInteger(n))
   const norm = (n: number) => n + 0
+  /** Brands a number that is a member of the type (in range, and integral when `integer`). */
+  const member = (n: number): A =>
+    // SAFETY: every caller passes `min`, `max`, a value that passed
+    // `isMember`, or a value it has clamped / wrapped into `[min, max]`
+    // (truncated first when `integer`).
+    n as A
   const clamp = (n: number, operation = "clamp"): A => {
     if (Number.isNaN(n)) throw new DomainError({ operation, type: name, reason: "result is NaN" })
     const m = integer ? Math.trunc(n) : n
-    return norm(m < min ? min : m > max ? max : m) as A
+    return member(norm(m < min ? min : m > max ? max : m))
   }
   const wrap = (n: number): A => {
     if (!Number.isFinite(n)) throw new DomainError({ operation: "wrap", type: name, reason: `cannot wrap ${n}` })
     const m = integer ? Math.trunc(n) : n
     const w = integer ? width + 1 : width
-    if (w === 0) return min as A
+    if (w === 0) return member(min)
     const r = (((m - min) % w) + w) % w
-    return norm(min + r) as A
+    return member(norm(min + r))
   }
-  const from = (n: number): Option.Option<A> => (isMember(n) ? Option.some(norm(n) as A) : Option.none())
+  const from = (n: number): Option.Option<A> => (isMember(n) ? Option.some(member(norm(n))) : Option.none())
   const exact = (n: number) => (integer ? Math.trunc(n) : n)
+  /** Position of a member in the range, in `[0, 1]`. */
+  const position = (a: A): UnitInterval =>
+    // SAFETY: `min <= a <= max`, so `(a - min) / width` lies in `[0, 1]`
+    // (and a zero-width range maps to 0).
+    (width === 0 ? 0 : (a - min) / width) as UnitInterval
 
-  const schema = Schema.Number.pipe(
-    Schema.check(Schema.isBetween({ minimum: min, maximum: max }), ...(integer ? [Schema.isInt()] : [])),
-    Schema.brand(name as "Clamped"),
-    Schema.annotate({ identifier: name })
-  ) as unknown as Schema.Codec<A, number>
-  const schemaClamping = Schema.Number.pipe(
-    Schema.check(Schema.makeFilter((n: number) => !Number.isNaN(n) || "expected a number, got NaN")),
+  const schema = brandAs<A, number>(
+    Schema.Number.pipe(
+      Schema.check(Schema.isBetween({ minimum: min, maximum: max }), ...(integer ? [Schema.isInt()] : []))
+    ),
+    name
+  )
+  const schemaClamping: Schema.Codec<A, number> = Schema.Number.pipe(
     Schema.decodeTo(schema, {
-      decode: SchemaGetter.transform((n: number) => clamp(n)),
+      decode: SchemaGetter.transformEffect((n: number) =>
+        Number.isNaN(n)
+          ? Effect.fail(new SchemaIssue.InvalidValue({ message: "expected a number, got NaN" }, n))
+          : Effect.succeed(clamp(n))
+      ),
       encode: SchemaGetter.transform((a: number) => a)
     })
-  ) as unknown as Schema.Codec<A, number>
+  )
 
   const self: ClampedModule<A> = {
     name,
-    min: min as A,
-    max: max as A,
-    minValue: min as A,
-    maxValue: max as A,
+    min: member(min),
+    max: member(max),
+    minValue: member(min),
+    maxValue: member(max),
     integer,
-    Order: Order.Number as Order.Order<A>,
-    Equivalence: Equivalence.Number as Equivalence.Equivalence<A>,
+    Order: Order.Number,
+    Equivalence: Equivalence.Number,
     schema,
     schemaClamping,
-    is: (u): u is A => typeof u === "number" && isMember(u),
+    is: (u): u is A => Predicate.isNumber(u) && isMember(u),
     make: (n) => clamp(n, "make"),
     from,
     fromResult: (n) =>
-      isMember(n) ? Result.succeed(norm(n) as A) : Result.fail(new OutOfRangeError({ type: name, value: n, min, max })),
+      isMember(n)
+        ? Result.succeed(member(norm(n)))
+        : Result.fail(new OutOfRangeError({ type: name, value: n, min, max })),
     wrap,
     add: operator((a: A, b: number) => clamp(a + b, "add")),
     sub: operator((a: A, b: number) => clamp(a - b, "subtract")),
@@ -259,8 +280,8 @@ const build = <A extends number>(options: Options<number, number>, integer: bool
     checkedAdd: operator((a: A, b: number) => from(exact(a + b))),
     checkedSub: operator((a: A, b: number) => from(exact(a - b))),
     lerp: (t) => clamp(min + t * width, "lerp"),
-    normalize: (a) => (width === 0 ? 0 : (a - min) / width) as UnitInterval,
-    rescale: (to) => (a) => to.lerp((width === 0 ? 0 : (a - min) / width) as UnitInterval),
+    normalize: position,
+    rescale: (to) => (a) => to.lerp(position(a)),
     isMin: (a) => a === min,
     isMax: (a) => a === max
   }

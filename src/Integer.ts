@@ -19,6 +19,7 @@
 import * as Option from "effect/Option"
 import { DivisionByZeroError } from "./ArithmeticError.ts"
 import * as big from "./internal/bigint.ts"
+import { euclid, extendedEuclid } from "./internal/iterate.ts"
 import { bigint as bigintIntegral, type Integral } from "./Num.ts"
 
 // -----------------------------------------------------------------------------
@@ -36,16 +37,8 @@ const absWith = <A>(I: Integral<A>, a: A): A => (sign(I, a) < 0 ? I.sub(I.zero, 
  */
 export const gcd =
   <A>(I: Integral<A>) =>
-  (a: A, b: A): A => {
-    let x = absWith(I, a)
-    let y = absWith(I, b)
-    while (!I.isZero(y)) {
-      const r = I.rem(x, y)
-      x = y
-      y = r
-    }
-    return x
-  }
+  (a: A, b: A): A =>
+    euclid(I, absWith(I, a), absWith(I, b))
 
 /**
  * Least common multiple (always non-negative; zero if either argument is zero).
@@ -70,19 +63,8 @@ export const lcm =
 export const extendedGcd =
   <A>(I: Integral<A>) =>
   (a: A, b: A): { readonly gcd: A; readonly x: A; readonly y: A } => {
-    let [oldR, r] = [a, b]
-    let [oldS, s] = [I.one, I.zero]
-    let [oldT, t] = [I.zero, I.one]
-    while (!I.isZero(r)) {
-      const q = I.div(oldR, r)
-      ;[oldR, r] = [r, I.sub(oldR, I.mul(q, r))]
-      ;[oldS, s] = [s, I.sub(oldS, I.mul(q, s))]
-      ;[oldT, t] = [t, I.sub(oldT, I.mul(q, t))]
-    }
-    if (sign(I, oldR) < 0) {
-      return { gcd: I.sub(I.zero, oldR), x: I.sub(I.zero, oldS), y: I.sub(I.zero, oldT) }
-    }
-    return { gcd: oldR, x: oldS, y: oldT }
+    const [r, s, t] = extendedEuclid(I, a, b)
+    return sign(I, r) < 0 ? { gcd: I.sub(I.zero, r), x: I.sub(I.zero, s), y: I.sub(I.zero, t) } : { gcd: r, x: s, y: t }
   }
 
 /**
@@ -239,9 +221,7 @@ export const nthRoot = (n: bigint, k: number): Option.Option<bigint> => {
  */
 export const factorial = (n: bigint): Option.Option<bigint> => {
   if (n < 0n) return Option.none()
-  let acc = 1n
-  for (let i = 2n; i <= n; i++) acc *= i
-  return Option.some(acc)
+  return Option.some(big.factorial(n))
 }
 
 /**
@@ -252,10 +232,7 @@ export const factorial = (n: bigint): Option.Option<bigint> => {
  */
 export const binomial = (n: bigint, k: bigint): bigint => {
   if (k < 0n || n < 0n || k > n) return 0n
-  const kk = k > n - k ? n - k : k
-  let acc = 1n
-  for (let i = 1n; i <= kk; i++) acc = (acc * (n - kk + i)) / i
-  return acc
+  return big.binomial(n, k)
 }
 
 /**
@@ -270,15 +247,7 @@ export const modPow = (base: bigint, exp: bigint, modulus: bigint): bigint => {
   if (exp < 0n) throw new RangeError("modPow: exponent must be non-negative")
   const m = big.abs(modulus)
   if (m === 1n) return 0n
-  let result = 1n
-  let b = ((base % m) + m) % m
-  let e = exp
-  while (e > 0n) {
-    if (e & 1n) result = (result * b) % m
-    e >>= 1n
-    b = (b * b) % m
-  }
-  return result
+  return big.modPow(base, exp, m)
 }
 
 /**
@@ -295,8 +264,6 @@ export const modInverse = (a: bigint, modulus: bigint): Option.Option<bigint> =>
   return g === 1n ? Option.some(((x % m) + m) % m) : Option.none()
 }
 
-const SMALL_PRIMES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n]
-
 /**
  * Primality test using Miller–Rabin. The answer is deterministic (exact)
  * for every `n < 3.3 * 10^24`; beyond that it is probabilistic with an error
@@ -305,26 +272,4 @@ const SMALL_PRIMES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41
  * @category bigint
  * @since 0.1.0
  */
-export const isPrime = (n: bigint): boolean => {
-  if (n < 2n) return false
-  for (const p of SMALL_PRIMES) {
-    if (n === p) return true
-    if (n % p === 0n) return false
-  }
-  let d = n - 1n
-  let s = 0
-  while ((d & 1n) === 0n) {
-    d >>= 1n
-    s++
-  }
-  outer: for (const a of SMALL_PRIMES) {
-    let x = modPow(a, d, n)
-    if (x === 1n || x === n - 1n) continue
-    for (let i = 1; i < s; i++) {
-      x = (x * x) % n
-      if (x === n - 1n) continue outer
-    }
-    return false
-  }
-  return true
-}
+export const isPrime = (n: bigint): boolean => big.isPrime(n)

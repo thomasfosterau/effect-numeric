@@ -19,9 +19,12 @@
  *
  * @since 0.1.0
  */
+import * as Arr from "effect/Array"
 import * as Equivalence from "effect/Equivalence"
+import * as Iterable from "effect/Iterable"
 import * as Option from "effect/Option"
 import * as Order from "effect/Order"
+import * as Predicate from "effect/Predicate"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import {
@@ -34,6 +37,8 @@ import {
 } from "./ArithmeticError.ts"
 import type { CheckedOps } from "./Checked.ts"
 import * as big from "./internal/bigint.ts"
+import { brandAs } from "./internal/brand.ts"
+import { iterateWhile } from "./internal/iterate.ts"
 import { type Bounded, type One, type Operator, operator, type Zero } from "./Num.ts"
 import type { OverflowingOps } from "./Overflowing.ts"
 import type { SaturatingOps } from "./Saturating.ts"
@@ -254,7 +259,7 @@ const numberPrim = (bits: number, signed: boolean): Prim<number> => {
     two: 2,
     min: signed ? -(2 ** (bits - 1)) : 0,
     max: signed ? 2 ** (bits - 1) - 1 : 2 ** bits - 1,
-    isRepr: (u): u is number => typeof u === "number",
+    isRepr: Predicate.isNumber,
     fromBig: Number,
     toBig: BigInt,
     toNum: (r) => r,
@@ -283,7 +288,7 @@ const bigintPrim = (bits: number, signed: boolean): Prim<bigint> => {
     two: 2n,
     min: signed ? -(1n << BigInt(bits - 1)) : 0n,
     max: signed ? (1n << BigInt(bits - 1)) - 1n : (1n << BigInt(bits)) - 1n,
-    isRepr: (u): u is bigint => typeof u === "bigint",
+    isRepr: Predicate.isBigInt,
     fromBig: (b) => b,
     toBig: (r) => r,
     toNum: Number,
@@ -331,11 +336,10 @@ export const make = <A extends number>(spec: Spec): FixedInt<A, number> => {
     throw new RangeError(`FixedInt.make: bits must be an integer in [1, 32], got ${spec.bits}`)
   }
   const prim = numberPrim(spec.bits, spec.signed)
-  const schema = Schema.Number.pipe(
-    Schema.check(Schema.isInt(), Schema.isBetween({ minimum: prim.min, maximum: prim.max })),
-    Schema.brand(spec.name as "FixedInt"),
-    Schema.annotate({ identifier: spec.name })
-  ) as unknown as Schema.Codec<A, number>
+  const schema = brandAs<A, number>(
+    Schema.Number.pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: prim.min, maximum: prim.max }))),
+    spec.name
+  )
   return build<A, number>(
     spec,
     prim,
@@ -368,11 +372,10 @@ export const makeBig = <A extends bigint>(spec: Spec): FixedInt<A, bigint> => {
     throw new RangeError(`FixedInt.makeBig: bits must be a positive integer, got ${spec.bits}`)
   }
   const prim = bigintPrim(spec.bits, spec.signed)
-  const schema = Schema.BigInt.pipe(
-    Schema.check(Schema.isBetweenBigInt({ minimum: prim.min, maximum: prim.max })),
-    Schema.brand(spec.name as "FixedInt"),
-    Schema.annotate({ identifier: spec.name })
-  ) as unknown as Schema.Codec<A, bigint>
+  const schema = brandAs<A, bigint>(
+    Schema.BigInt.pipe(Schema.check(Schema.isBetweenBigInt({ minimum: prim.min, maximum: prim.max }))),
+    spec.name
+  )
   return build<A, bigint>(
     spec,
     prim,
@@ -411,27 +414,39 @@ export const convert =
 const build = <A extends R, R extends number | bigint>(
   spec: Spec,
   P: Prim<R>,
-  repr: "number" | "bigint",
+  repr: FixedInt<A, R>["repr"],
   schema: Schema.Codec<A, R>,
   schemaFromString: Schema.Codec<A, string>,
   ord: Order.Order<R>,
   eqv: Equivalence.Equivalence<R>
 ): FixedInt<A, R> => {
   const { name: type, bits, signed } = spec
-  const MIN = P.min as A
-  const MAX = P.max as A
-  const ZERO = P.zero as A
-  const ONE = P.one as A
-  const NEG_ONE = (signed ? P.sub(P.zero, P.one) : P.zero) as R
+  /** Whether `r` is a value of the type, i.e. an integer in `[MIN, MAX]` (callers pass integers). */
+  const inRange = (r: R): r is A => !(P.lt(r, P.min) || P.lt(P.max, r))
+  /**
+   * Brands a representation value that is in `[MIN, MAX]` by construction:
+   * the type's own bounds and constants, the output of `P.wrap` and of the
+   * `Prim` operations that wrap internally (`wrappingMul`, `and`, `or`,
+   * `xor`, `not`, `shl`), and exact results that cannot leave the range of
+   * their in-range operands (`rem`, Euclidean remainder, `shr`, `midpoint`,
+   * `isqrt`, a range-checked `fromBig`).
+   */
+  const inRangeByConstruction = (r: R): A =>
+    // SAFETY: every call site passes a value in `[MIN, MAX]`; see the doc comment.
+    r as A
+  const MIN = inRangeByConstruction(P.min)
+  const MAX = inRangeByConstruction(P.max)
+  const ZERO = inRangeByConstruction(P.zero)
+  const ONE = inRangeByConstruction(P.one)
+  const NEG_ONE: R = signed ? P.sub(P.zero, P.one) : P.zero
   const bigMin = P.toBig(P.min)
   const bigMax = P.toBig(P.max)
   const limit = 1n << BigInt(bits)
   const byteAligned = bits % 8 === 0
 
-  const inRange = (r: R): boolean => !(P.lt(r, P.min) || P.lt(P.max, r))
-  const someIfInRange = (r: R): Option.Option<A> => (inRange(r) ? Option.some(r as A) : Option.none())
-  const sat = (r: R): A => (P.lt(r, P.min) ? MIN : P.lt(P.max, r) ? MAX : (r as A))
-  const wrap = (r: R): A => P.wrap(r) as A
+  const someIfInRange = (r: R): Option.Option<A> => (inRange(r) ? Option.some(r) : Option.none())
+  const sat = (r: R): A => (inRange(r) ? r : P.lt(r, P.min) ? MIN : MAX)
+  const wrap = (r: R): A => inRangeByConstruction(P.wrap(r))
   const isZero = (r: R) => eqv(r, P.zero)
   const isNeg = (r: R) => P.lt(r, P.zero)
   /** The only overflowing case of division and remainder. */
@@ -443,7 +458,7 @@ const build = <A extends R, R extends number | bigint>(
   const strict =
     (operation: string) =>
     (r: R): Result.Result<A, OverflowError> =>
-      inRange(r) ? Result.succeed(r as A) : Result.fail(overflow(operation))
+      inRange(r) ? Result.succeed(r) : Result.fail(overflow(operation))
   const assertNonZero = (b: R, operation: string) => {
     if (isZero(b)) throw divByZero(operation)
   }
@@ -460,35 +475,40 @@ const build = <A extends R, R extends number | bigint>(
   // --- conversion -----------------------------------------------------------
 
   const fromBigChecked = (b: bigint): Option.Option<A> =>
-    b < bigMin || b > bigMax ? Option.none() : Option.some(P.fromBig(b) as A)
+    b < bigMin || b > bigMax ? Option.none() : Option.some(inRangeByConstruction(P.fromBig(b)))
 
+  const outOfRange = (value: number | bigint) => new OutOfRangeError({ type, value, min: P.min, max: P.max })
   const from = (value: number | bigint): Option.Option<A> => {
-    if (repr === "number" && typeof value === "number") {
-      return Number.isInteger(value) && value >= (P.min as number) && value <= (P.max as number)
-        ? Option.some((value + 0) as A)
-        : Option.none()
+    // Fast path for `number`-represented types: `value + 0` turns `-0` into `0`.
+    if (repr === "number" && P.isRepr(value)) {
+      return Number.isInteger(value) ? someIfInRange(P.add(value, P.zero)) : Option.none()
     }
-    const b = big.toBigIntExact(value)
-    return b === undefined ? Option.none() : fromBigChecked(b)
+    return Option.flatMap(big.toBigIntExact(value), fromBigChecked)
   }
   const fromResult = (value: number | bigint): Result.Result<A, OutOfRangeError> =>
     Option.match(from(value), {
-      onNone: () => Result.fail(new OutOfRangeError({ type, value, min: P.min, max: P.max })),
+      onNone: () => Result.fail(outOfRange(value)),
       onSome: Result.succeed
     })
-  const truncate = (value: number | bigint): bigint | undefined =>
-    typeof value === "bigint" ? value : Number.isFinite(value) ? BigInt(Math.trunc(value)) : undefined
+  /** Truncates toward zero; `None` for `NaN` and the infinities. */
+  const truncate = (value: number | bigint): Option.Option<bigint> =>
+    Predicate.isBigInt(value)
+      ? Option.some(value)
+      : Number.isFinite(value)
+        ? Option.some(BigInt(Math.trunc(value)))
+        : Option.none()
   const wrappingFrom = (value: number | bigint): A => {
-    if (repr === "number" && typeof value === "number" && Number.isSafeInteger(value)) return wrap(value as R)
-    const b = truncate(value)
-    return b === undefined ? ZERO : (P.fromBig(signed ? BigInt.asIntN(bits, b) : BigInt.asUintN(bits, b)) as A)
+    if (repr === "number" && P.isRepr(value) && Number.isSafeInteger(value)) return wrap(value)
+    return Option.match(truncate(value), { onNone: () => ZERO, onSome: (b) => fromU(BigInt.asUintN(bits, b)) })
   }
   const saturatingFrom = (value: number | bigint): A => {
-    if (typeof value === "number" && Number.isNaN(value)) return ZERO
     if (value === Number.POSITIVE_INFINITY) return MAX
     if (value === Number.NEGATIVE_INFINITY) return MIN
-    const b = truncate(value)!
-    return b < bigMin ? MIN : b > bigMax ? MAX : (P.fromBig(b) as A)
+    // Only `NaN` is left without a truncation.
+    return Option.match(truncate(value), {
+      onNone: () => ZERO,
+      onSome: (b) => (b < bigMin ? MIN : b > bigMax ? MAX : inRangeByConstruction(P.fromBig(b)))
+    })
   }
 
   // --- division family -------------------------------------------------------
@@ -505,34 +525,22 @@ const build = <A extends R, R extends number | bigint>(
 
   // --- pow ---------------------------------------------------------------------
 
-  const powExact = (a: A, exp: number): bigint | undefined => big.powBounded(P.toBig(a), exp, limit)
-  const powWrapping = (a: A, exp: number): A => {
-    const u = big.powMod2(P.toBig(a), exp, bits)
-    return P.fromBig(signed ? BigInt.asIntN(bits, u) : u) as A
-  }
-  const powFits = (exact: bigint | undefined): exact is bigint =>
-    exact !== undefined && exact >= bigMin && exact <= bigMax
+  /** `a ** exp` when it fits the type, `None` on overflow. */
+  const powChecked = (a: A, exp: number): Option.Option<A> =>
+    Option.flatMap(big.powBounded(P.toBig(a), exp, limit), fromBigChecked)
+  const powWrapping = (a: A, exp: number): A => fromU(big.powMod2(P.toBig(a), exp, bits))
 
   // --- bits ---------------------------------------------------------------------
 
   const mask = limit - 1n
   const toU = (a: A): bigint => BigInt.asUintN(bits, P.toBig(a))
-  const fromU = (u: bigint): A => P.fromBig(signed ? BigInt.asIntN(bits, u) : u) as A
-  const countOnes = (a: A): number => {
-    let n = 0
-    for (const c of toU(a).toString(2)) if (c === "1") n++
-    return n
-  }
+  /** The value whose unsigned `bits`-bit pattern is `u` (`0 <= u < 2^bits`). */
+  const fromU = (u: bigint): A => inRangeByConstruction(P.fromBig(signed ? BigInt.asIntN(bits, u) : u))
+  const countOnes = (a: A): number => Arr.reduce(toU(a).toString(2), 0, (n, c) => (c === "1" ? n + 1 : n))
   const leadingZeros = (a: A): number => bits - big.bitLength(toU(a))
   const trailingZeros = (a: A): number => {
-    let u = toU(a)
-    if (u === 0n) return bits
-    let n = 0
-    while ((u & 1n) === 0n) {
-      u >>= 1n
-      n++
-    }
-    return n
+    const u = toU(a)
+    return u === 0n ? bits : big.trailingZeros(u)
   }
   const rotateLeft = (a: A, n: number): A => {
     assertShift(n, "rotate")
@@ -543,20 +551,15 @@ const build = <A extends R, R extends number | bigint>(
   }
   const toLeBytes = (a: A): Uint8Array => {
     assertBytes("toLeBytes")
-    const out = new Uint8Array(bits / 8)
-    let u = toU(a)
-    for (let i = 0; i < out.length; i++) {
-      out[i] = Number(u & 0xffn)
-      u >>= 8n
-    }
-    return out
+    const u = toU(a)
+    return Uint8Array.from({ length: bits / 8 }, (_, i) => Number((u >> BigInt(8 * i)) & 0xffn))
   }
+  /** The value whose little-endian bytes are `bytes` (exactly `bits / 8` of them). */
+  const fromLeBytesExact = (bytes: Uint8Array): A =>
+    fromU(Arr.reduceRight(bytes, 0n, (u, byte) => (u << 8n) | BigInt(byte)))
   const fromLeBytes = (bytes: Uint8Array): Option.Option<A> => {
     assertBytes("fromLeBytes")
-    if (bytes.length !== bits / 8) return Option.none()
-    let u = 0n
-    for (let i = bytes.length - 1; i >= 0; i--) u = (u << 8n) | BigInt(bytes[i]!)
-    return Option.some(fromU(u))
+    return bytes.length === bits / 8 ? Option.some(fromLeBytesExact(bytes)) : Option.none()
   }
 
   // --- ilog / isqrt --------------------------------------------------------------
@@ -569,7 +572,7 @@ const build = <A extends R, R extends number | bigint>(
   }
   const isqrt = (a: A): Result.Result<A, DomainError> => {
     if (isNeg(a)) return Result.fail(domain("isqrt", `argument must be non-negative, got ${a}`))
-    return Result.succeed(P.fromBig(big.isqrt(P.toBig(a))) as A)
+    return Result.succeed(inRangeByConstruction(P.fromBig(big.isqrt(P.toBig(a)))))
   }
 
   // --- assembled module -----------------------------------------------------------
@@ -578,7 +581,7 @@ const build = <A extends R, R extends number | bigint>(
     name: type,
     bits,
     signed,
-    repr: repr as FixedInt<A, R>["repr"],
+    repr,
     MIN,
     MAX,
     minValue: MIN,
@@ -587,28 +590,32 @@ const build = <A extends R, R extends number | bigint>(
     one: ONE,
     isZero,
     isOne: (a) => eqv(a, P.one),
-    Order: ord as Order.Order<A>,
-    Equivalence: eqv as Equivalence.Equivalence<A>,
+    Order: ord,
+    Equivalence: eqv,
     schema,
     schemaFromString,
 
     is: (u): u is A => P.isRepr(u) && Option.isSome(from(u)),
     from,
     fromResult,
-    make: (value) => Result.getOrThrow(fromResult(value)),
+    make: (value) =>
+      Option.getOrElse(from(value), () => {
+        throw outOfRange(value)
+      }),
     wrappingFrom,
     saturatingFrom,
     toNumber: P.toNum,
     toBigInt: P.toBig,
     toString: (a, radix = 10) => a.toString(radix),
-    parse: (input, radix = 10) => {
-      const b = big.parse(input, radix)
-      if (b === undefined) return Result.fail(new ParseError({ type, input }))
-      return Option.match(fromBigChecked(b), {
-        onNone: () => Result.fail(new OutOfRangeError({ type, value: b, min: P.min, max: P.max })),
-        onSome: Result.succeed
-      })
-    },
+    parse: (input, radix = 10) =>
+      Option.match(big.parse(input, radix), {
+        onNone: () => Result.fail(new ParseError({ type, input })),
+        onSome: (b) =>
+          Option.match(fromBigChecked(b), {
+            onNone: () => Result.fail(outOfRange(b)),
+            onSome: Result.succeed
+          })
+      }),
 
     // strict
     add: operator((a: A, b: A) => strict("add")(P.add(a, b))),
@@ -620,7 +627,7 @@ const build = <A extends R, R extends number | bigint>(
         ? Result.fail(divByZero("calculate the remainder"))
         : isMinByNegOne(a, b)
           ? Result.fail(overflow("calculate the remainder"))
-          : Result.succeed(P.rem(a, b) as A)
+          : Result.succeed(inRangeByConstruction(P.rem(a, b)))
     ),
     divEuclid: operator((a: A, b: A) =>
       isZero(b) ? Result.fail(divByZero("divide")) : strict("divide")(euclidQuot(a, b))
@@ -630,7 +637,7 @@ const build = <A extends R, R extends number | bigint>(
         ? Result.fail(divByZero("calculate the remainder"))
         : isMinByNegOne(a, b)
           ? Result.fail(overflow("calculate the remainder"))
-          : Result.succeed(euclidRem(a, b) as A)
+          : Result.succeed(inRangeByConstruction(euclidRem(a, b)))
     ),
     neg: (a) => strict("negate")(P.sub(P.zero, a)),
     abs: (a) => strict("take the absolute value")(absR(a)),
@@ -638,22 +645,24 @@ const build = <A extends R, R extends number | bigint>(
       if (!big.isNonNegativeInteger(exp)) {
         return Result.fail(domain("pow", `exponent must be a non-negative integer, got ${exp}`))
       }
-      const exact = powExact(a, exp)
-      return powFits(exact) ? Result.succeed(P.fromBig(exact) as A) : Result.fail(overflow("pow"))
+      return Option.match(powChecked(a, exp), {
+        onNone: () => Result.fail(overflow("pow")),
+        onSome: Result.succeed
+      })
     }),
     shl: operator((a: A, n: number): Result.Result<A, ArithmeticError> =>
       !big.isNonNegativeInteger(n)
         ? Result.fail(domain("shift left", `shift amount must be a non-negative integer, got ${n}`))
         : n >= bits
           ? Result.fail(overflow("shift left"))
-          : Result.succeed(P.shl(a, n) as A)
+          : Result.succeed(inRangeByConstruction(P.shl(a, n)))
     ),
     shr: operator((a: A, n: number): Result.Result<A, ArithmeticError> =>
       !big.isNonNegativeInteger(n)
         ? Result.fail(domain("shift right", `shift amount must be a non-negative integer, got ${n}`))
         : n >= bits
           ? Result.fail(overflow("shift right"))
-          : Result.succeed(P.shr(a, n) as A)
+          : Result.succeed(inRangeByConstruction(P.shr(a, n)))
     ),
     isqrt,
     ilog2: (a) => ilogImpl(a, 2n, "ilog2"),
@@ -666,26 +675,25 @@ const build = <A extends R, R extends number | bigint>(
     checkedMul: operator((a: A, b: A) => someIfInRange(P.mul(a, b))),
     checkedDiv: operator((a: A, b: A) => (isZero(b) ? Option.none() : someIfInRange(P.quot(a, b)))),
     checkedRem: operator((a: A, b: A) =>
-      isZero(b) || isMinByNegOne(a, b) ? Option.none() : Option.some(P.rem(a, b) as A)
+      isZero(b) || isMinByNegOne(a, b) ? Option.none() : Option.some(inRangeByConstruction(P.rem(a, b)))
     ),
     checkedDivEuclid: operator((a: A, b: A) => (isZero(b) ? Option.none() : someIfInRange(euclidQuot(a, b)))),
     checkedRemEuclid: operator((a: A, b: A) =>
-      isZero(b) || isMinByNegOne(a, b) ? Option.none() : Option.some(euclidRem(a, b) as A)
+      isZero(b) || isMinByNegOne(a, b) ? Option.none() : Option.some(inRangeByConstruction(euclidRem(a, b)))
     ),
     checkedNeg: (a) => someIfInRange(P.sub(P.zero, a)),
     checkedAbs: (a) => someIfInRange(absR(a)),
     checkedPow: operator((a: A, exp: number) => {
       assertExp(exp)
-      const exact = powExact(a, exp)
-      return powFits(exact) ? Option.some(P.fromBig(exact) as A) : Option.none()
+      return powChecked(a, exp)
     }),
     checkedShl: operator((a: A, n: number) => {
       assertShift(n, "shift left")
-      return n >= bits ? Option.none() : Option.some(P.shl(a, n) as A)
+      return n >= bits ? Option.none() : Option.some(inRangeByConstruction(P.shl(a, n)))
     }),
     checkedShr: operator((a: A, n: number) => {
       assertShift(n, "shift right")
-      return n >= bits ? Option.none() : Option.some(P.shr(a, n) as A)
+      return n >= bits ? Option.none() : Option.some(inRangeByConstruction(P.shr(a, n)))
     }),
     checkedIsqrt: (a) => Result.getSuccess(isqrt(a)),
     checkedIlog2: (a) => Result.getSuccess(ilogImpl(a, 2n, "ilog2")),
@@ -700,14 +708,14 @@ const build = <A extends R, R extends number | bigint>(
     // wrapping
     wrappingAdd: operator((a: A, b: A) => wrap(P.add(a, b))),
     wrappingSub: operator((a: A, b: A) => wrap(P.sub(a, b))),
-    wrappingMul: operator((a: A, b: A) => P.wrappingMul(a, b) as A),
+    wrappingMul: operator((a: A, b: A) => inRangeByConstruction(P.wrappingMul(a, b))),
     wrappingDiv: operator((a: A, b: A) => {
       assertNonZero(b, "divide")
       return wrap(P.quot(a, b))
     }),
     wrappingRem: operator((a: A, b: A) => {
       assertNonZero(b, "calculate the remainder")
-      return P.rem(a, b) as A
+      return inRangeByConstruction(P.rem(a, b))
     }),
     wrappingDivEuclid: operator((a: A, b: A) => {
       assertNonZero(b, "divide")
@@ -715,7 +723,7 @@ const build = <A extends R, R extends number | bigint>(
     }),
     wrappingRemEuclid: operator((a: A, b: A) => {
       assertNonZero(b, "calculate the remainder")
-      return euclidRem(a, b) as A
+      return inRangeByConstruction(euclidRem(a, b))
     }),
     wrappingNeg: (a) => wrap(P.sub(P.zero, a)),
     wrappingAbs: (a) => wrap(absR(a)),
@@ -725,11 +733,11 @@ const build = <A extends R, R extends number | bigint>(
     }),
     wrappingShl: operator((a: A, n: number) => {
       assertShift(n, "shift left")
-      return P.shl(a, n % bits) as A
+      return inRangeByConstruction(P.shl(a, n % bits))
     }),
     wrappingShr: operator((a: A, n: number) => {
       assertShift(n, "shift right")
-      return P.shr(a, n % bits) as A
+      return inRangeByConstruction(P.shr(a, n % bits))
     }),
 
     // saturating
@@ -744,9 +752,7 @@ const build = <A extends R, R extends number | bigint>(
     saturatingAbs: (a) => sat(absR(a)),
     saturatingPow: operator((a: A, exp: number) => {
       assertExp(exp)
-      const exact = powExact(a, exp)
-      if (powFits(exact)) return P.fromBig(exact) as A
-      return isNeg(a) && exp % 2 === 1 ? MIN : MAX
+      return Option.getOrElse(powChecked(a, exp), () => (isNeg(a) && exp % 2 === 1 ? MIN : MAX))
     }),
 
     // overflowing
@@ -758,7 +764,9 @@ const build = <A extends R, R extends number | bigint>(
       const r = P.sub(a, b)
       return [wrap(r), !inRange(r)] as const
     }),
-    overflowingMul: operator((a: A, b: A) => [P.wrappingMul(a, b) as A, !inRange(P.mul(a, b))] as const),
+    overflowingMul: operator(
+      (a: A, b: A) => [inRangeByConstruction(P.wrappingMul(a, b)), !inRange(P.mul(a, b))] as const
+    ),
     overflowingDiv: operator((a: A, b: A) => {
       assertNonZero(b, "divide")
       const q = P.quot(a, b)
@@ -766,7 +774,7 @@ const build = <A extends R, R extends number | bigint>(
     }),
     overflowingRem: operator((a: A, b: A) => {
       assertNonZero(b, "calculate the remainder")
-      return [P.rem(a, b) as A, isMinByNegOne(a, b)] as const
+      return [inRangeByConstruction(P.rem(a, b)), isMinByNegOne(a, b)] as const
     }),
     overflowingNeg: (a) => {
       const r = P.sub(P.zero, a)
@@ -778,39 +786,39 @@ const build = <A extends R, R extends number | bigint>(
     },
     overflowingPow: operator((a: A, exp: number) => {
       assertExp(exp)
-      return [powWrapping(a, exp), !powFits(powExact(a, exp))] as const
+      return [powWrapping(a, exp), Option.isNone(powChecked(a, exp))] as const
     }),
     overflowingShl: operator((a: A, n: number) => {
       assertShift(n, "shift left")
-      return [P.shl(a, n % bits) as A, n >= bits] as const
+      return [inRangeByConstruction(P.shl(a, n % bits)), n >= bits] as const
     }),
     overflowingShr: operator((a: A, n: number) => {
       assertShift(n, "shift right")
-      return [P.shr(a, n % bits) as A, n >= bits] as const
+      return [inRangeByConstruction(P.shr(a, n % bits)), n >= bits] as const
     }),
 
     // comparison & misc
     min: operator((a: A, b: A) => (P.lt(b, a) ? b : a)),
     max: operator((a: A, b: A) => (P.lt(a, b) ? b : a)),
     clamp: (a, minimum, maximum) => (P.lt(a, minimum) ? minimum : P.lt(maximum, a) ? maximum : a),
-    signum: (a) => (isNeg(a) ? (NEG_ONE as A) : isZero(a) ? ZERO : ONE),
+    signum: (a) => (isNeg(a) ? inRangeByConstruction(NEG_ONE) : isZero(a) ? ZERO : ONE),
     isPositive: (a) => P.lt(P.zero, a),
     isNegative: isNeg,
     isPowerOfTwo: (a) => !isNeg(a) && !isZero(a) && isZero(P.and(a, P.sub(a, P.one))),
-    midpoint: operator((a: A, b: A) => P.quot(P.add(a, b), P.two) as A),
+    midpoint: operator((a: A, b: A) => inRangeByConstruction(P.quot(P.add(a, b), P.two))),
     absDiff: operator((a: A, b: A) => big.abs(P.toBig(a) - P.toBig(b))),
 
     // bits
-    bitAnd: operator((a: A, b: A) => P.and(a, b) as A),
-    bitOr: operator((a: A, b: A) => P.or(a, b) as A),
-    bitXor: operator((a: A, b: A) => P.xor(a, b) as A),
-    bitNot: (a) => P.not(a) as A,
+    bitAnd: operator((a: A, b: A) => inRangeByConstruction(P.and(a, b))),
+    bitOr: operator((a: A, b: A) => inRangeByConstruction(P.or(a, b))),
+    bitXor: operator((a: A, b: A) => inRangeByConstruction(P.xor(a, b))),
+    bitNot: (a) => inRangeByConstruction(P.not(a)),
     countOnes,
     countZeros: (a) => bits - countOnes(a),
     leadingZeros,
     trailingZeros,
-    leadingOnes: (a) => leadingZeros(P.not(a) as A),
-    trailingOnes: (a) => trailingZeros(P.not(a) as A),
+    leadingOnes: (a) => leadingZeros(inRangeByConstruction(P.not(a))),
+    trailingOnes: (a) => trailingZeros(inRangeByConstruction(P.not(a))),
     rotateLeft: operator(rotateLeft),
     rotateRight: operator((a: A, n: number) => {
       assertShift(n, "rotate")
@@ -819,7 +827,7 @@ const build = <A extends R, R extends number | bigint>(
     reverseBits: (a) => fromU(BigInt(`0b${[...toU(a).toString(2).padStart(bits, "0")].reverse().join("")}`)),
     swapBytes: (a) => {
       assertBytes("swapBytes")
-      return Option.getOrThrow(fromLeBytes(toLeBytes(a).reverse()))
+      return fromLeBytesExact(toLeBytes(a).reverse())
     },
     toBeBytes: (a) => toLeBytes(a).reverse(),
     toLeBytes,
@@ -830,11 +838,26 @@ const build = <A extends R, R extends number | bigint>(
     fromLeBytes,
 
     // iteration
+    // Every yielded `i` lies between `start` and `end`, both values of the type.
     range: function* (start, end) {
-      for (let i: R = start; P.lt(i, end); i = P.add(i, P.one)) yield i as A
+      yield* Iterable.map(
+        iterateWhile<R>(
+          start,
+          (i) => P.lt(i, end),
+          (i) => P.add(i, P.one)
+        ),
+        (i) => inRangeByConstruction(i)
+      )
     },
     rangeInclusive: function* (start, end) {
-      for (let i: R = start; !P.lt(end, i); i = P.add(i, P.one)) yield i as A
+      yield* Iterable.map(
+        iterateWhile<R>(
+          start,
+          (i) => !P.lt(end, i),
+          (i) => P.add(i, P.one)
+        ),
+        (i) => inRangeByConstruction(i)
+      )
     }
   }
   return self

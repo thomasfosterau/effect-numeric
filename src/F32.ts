@@ -16,9 +16,11 @@
  * @since 0.1.0
  */
 import type * as Brand from "effect/Brand"
+import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import { type Float, makeFloat } from "./Float.ts"
+import { brandAs } from "./internal/brand.ts"
 
 /**
  * A single precision floating point number.
@@ -54,13 +56,21 @@ const nextUp32 = (n: number): number => {
   return f32View.getFloat32(0)
 }
 
-const isF32 = (u: unknown): u is F32 => typeof u === "number" && (Number.isNaN(u) || Math.fround(u) === u)
+const isF32 = <T>(u: T): u is T & F32 => Predicate.isNumber(u) && (Number.isNaN(u) || Math.fround(u) === u)
 
-const schema = Schema.Number.pipe(
-  Schema.check(Schema.makeFilter((n: number) => isF32(n) || "Expected a number representable as a 32-bit float")),
-  Schema.brand("F32"),
-  Schema.annotate({ identifier: "F32" })
-) as unknown as Schema.Codec<F32, number>
+const schema = brandAs<F32, number>(
+  Schema.Number.pipe(
+    Schema.check(
+      Schema.makeFilter((n: number) => isF32(n) || "Expected a number representable as a 32-bit float", {
+        // The identifier names the JSON Schema definition of the encoded number.
+        identifier: "F32Encoded",
+        title: "f32",
+        description: "A number exactly representable as an IEEE 754 single precision float"
+      })
+    )
+  ),
+  "F32"
+)
 
 /**
  * The `f32` instance.
@@ -85,6 +95,6 @@ export const F32: F32Module = /* @__PURE__ */ Object.assign(
         decode: SchemaGetter.transform(Math.fround),
         encode: SchemaGetter.transform((n: number) => n)
       })
-    ) as unknown as Schema.Codec<F32, number>
+    )
   }
 )
