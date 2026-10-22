@@ -1,12 +1,16 @@
 /**
  * Typed errors produced by fallible numeric operations.
  *
- * Every error is a `Data.TaggedError`, so it can be matched on by `_tag`,
- * yielded directly inside `Effect.gen`, and compared structurally.
+ * Every error is a `Schema.TaggedError`, so it can be matched on by `_tag`,
+ * yielded directly inside `Effect.gen`, compared structurally, and used as a
+ * schema of its own. Each `message` is derived from the error's fields.
  *
  * @since 0.1.0
  */
-import * as Data from "effect/Data"
+import * as Schema from "effect/Schema"
+
+/** Quotes a string exactly as `JSON.stringify` does, for {@link ParseError}'s message. */
+const quote = Schema.encodeSync(Schema.fromJsonString(Schema.String))
 
 /**
  * The result of an operation does not fit in the target type.
@@ -14,15 +18,15 @@ import * as Data from "effect/Data"
  * @category errors
  * @since 0.1.0
  */
-export class OverflowError extends Data.TaggedError("OverflowError")<{
+export class OverflowError extends Schema.TaggedError<OverflowError>()("OverflowError", {
   /** Name of the operation that overflowed, e.g. `"add"`. */
-  readonly operation: string
+  operation: Schema.String,
   /** Name of the numeric type, e.g. `"U8"`. */
-  readonly type: string
-  readonly message: string
-}> {
-  constructor(args: { readonly operation: string; readonly type: string }) {
-    super({ ...args, message: `${args.type}: attempt to ${args.operation} with overflow` })
+  type: Schema.String
+}) {
+  /** `"<type>: attempt to <operation> with overflow"`. */
+  override get message(): string {
+    return `${this.type}: attempt to ${this.operation} with overflow`
   }
 }
 
@@ -32,13 +36,15 @@ export class OverflowError extends Data.TaggedError("OverflowError")<{
  * @category errors
  * @since 0.1.0
  */
-export class DivisionByZeroError extends Data.TaggedError("DivisionByZeroError")<{
-  readonly operation: string
-  readonly type: string
-  readonly message: string
-}> {
-  constructor(args: { readonly operation: string; readonly type: string }) {
-    super({ ...args, message: `${args.type}: attempt to ${args.operation} by zero` })
+export class DivisionByZeroError extends Schema.TaggedError<DivisionByZeroError>()("DivisionByZeroError", {
+  /** Name of the operation, e.g. `"div"`. */
+  operation: Schema.String,
+  /** Name of the numeric type, e.g. `"U8"`. */
+  type: Schema.String
+}) {
+  /** `"<type>: attempt to <operation> by zero"`. */
+  override get message(): string {
+    return `${this.type}: attempt to ${this.operation} by zero`
   }
 }
 
@@ -50,18 +56,19 @@ export class DivisionByZeroError extends Data.TaggedError("DivisionByZeroError")
  * @category errors
  * @since 0.1.0
  */
-export class OutOfRangeError extends Data.TaggedError("OutOfRangeError")<{
-  readonly type: string
-  readonly value: unknown
-  readonly min: unknown
-  readonly max: unknown
-  readonly message: string
-}> {
-  constructor(args: { readonly type: string; readonly value: unknown; readonly min: unknown; readonly max: unknown }) {
-    super({
-      ...args,
-      message: `${args.type}: ${String(args.value)} is not a valid value in range [${String(args.min)}, ${String(args.max)}]`
-    })
+export class OutOfRangeError extends Schema.TaggedError<OutOfRangeError>()("OutOfRangeError", {
+  /** Name of the target type, e.g. `"U8"`. */
+  type: Schema.String,
+  /** The rejected input. */
+  value: Schema.Unknown,
+  /** The smallest value of the target type. */
+  min: Schema.Unknown,
+  /** The largest value of the target type. */
+  max: Schema.Unknown
+}) {
+  /** `"<type>: <value> is not a valid value in range [<min>, <max>]"`. */
+  override get message(): string {
+    return `${this.type}: ${String(this.value)} is not a valid value in range [${String(this.min)}, ${String(this.max)}]`
   }
 }
 
@@ -72,14 +79,17 @@ export class OutOfRangeError extends Data.TaggedError("OutOfRangeError")<{
  * @category errors
  * @since 0.1.0
  */
-export class DomainError extends Data.TaggedError("DomainError")<{
-  readonly operation: string
-  readonly type: string
-  readonly reason: string
-  readonly message: string
-}> {
-  constructor(args: { readonly operation: string; readonly type: string; readonly reason: string }) {
-    super({ ...args, message: `${args.type}: ${args.operation}: ${args.reason}` })
+export class DomainError extends Schema.TaggedError<DomainError>()("DomainError", {
+  /** Name of the operation, e.g. `"isqrt"`. */
+  operation: Schema.String,
+  /** Name of the numeric type, e.g. `"I8"`. */
+  type: Schema.String,
+  /** Why the argument is outside the domain. */
+  reason: Schema.String
+}) {
+  /** `"<type>: <operation>: <reason>"`. */
+  override get message(): string {
+    return `${this.type}: ${this.operation}: ${this.reason}`
   }
 }
 
@@ -89,13 +99,15 @@ export class DomainError extends Data.TaggedError("DomainError")<{
  * @category errors
  * @since 0.1.0
  */
-export class ParseError extends Data.TaggedError("ParseError")<{
-  readonly type: string
-  readonly input: string
-  readonly message: string
-}> {
-  constructor(args: { readonly type: string; readonly input: string }) {
-    super({ ...args, message: `${args.type}: cannot parse ${JSON.stringify(args.input)}` })
+export class ParseError extends Schema.TaggedError<ParseError>()("ParseError", {
+  /** Name of the target type, e.g. `"U8"`. */
+  type: Schema.String,
+  /** The string that failed to parse. */
+  input: Schema.String
+}) {
+  /** `"<type>: cannot parse <input as a JSON string literal>"`. */
+  override get message(): string {
+    return `${this.type}: cannot parse ${quote(this.input)}`
   }
 }
 
