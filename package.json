@@ -53,7 +53,7 @@
   "scripts": {
     "changeset": "changeset",
     "version": "changeset version && vp fmt && pnpm install --lockfile-only",
-    "release": "vp run build && pnpm publish --access public --no-git-checks --ignore-scripts && changeset tag",
+    "release": "vp run build && pnpm -r publish --access public --no-git-checks --ignore-scripts && changeset tag",
     "fallow": "fallow --summary",
     "fallow:audit": "fallow audit",
     "prepare": "vp config && effect-tsgo patch --typescript --oxlint"
