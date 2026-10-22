@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.schemastore.org/package",
   "name": "effect-numeric",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Effect-native numeric types: fixed-width integers with checked, wrapping, saturating and overflowing arithmetic, clamped ranges, rationals, complex numbers and num-traits style type classes.",
   "keywords": [
     "checked",
