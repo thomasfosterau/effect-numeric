@@ -155,7 +155,7 @@ const third = Ratio.make(1, 3)
 pipe(third, Ratio.add(Ratio.make(1, 6)), Ratio.toString) // "1/2"
 Equal.equals(Ratio.make(2, 4), Ratio.make(1, 2)) // true
 Ratio.approximate(Math.PI, 1000n) // Option.some(355/113)
-Ratio.fromNumber(0.1) // the exact value of the double 0.1
+Ratio.fromNumber(0.1) // Option.some(3602879701896397/36028797018963968), the double's exact value
 Ratio.toFixed(Ratio.make(2, 3), 4) // "0.6667"
 
 const z = Complex.make(3, 4)
@@ -222,26 +222,12 @@ Every module is available from the package root and as a subpath import (`effect
 | `Range`           | `range`, `rangeInclusive`, `rangeStep`, `linspace`                                     |
 | `ArithmeticError` | `OverflowError`, `DivisionByZeroError`, `DomainError`, `OutOfRangeError`, `ParseError` |
 
-## Development
+## Links
 
-```sh
-pnpm install
-pnpm test          # vitest + fast-check property tests
-pnpm typecheck
-pnpm lint          # biome
-pnpm build         # emits ESM + declarations to dist/
-pnpm check:exports # publint + are-the-types-wrong
-```
-
-### Releasing
-
-Releases are managed with [changesets](https://github.com/changesets/changesets):
-
-1. Add a changeset to your pull request with `pnpm changeset`.
-2. When it lands on `main`, the Release workflow opens a "version packages" pull request that bumps the version and updates `CHANGELOG.md`.
-3. Merging that pull request publishes to npm with provenance.
-
-The Release workflow needs an `NPM_TOKEN` repository secret (an npm automation or granular access token with publish rights for `effect-numeric`).
+- [API surface by module](#modules): every export carries a doc comment with `@since` and, for constructors, an `@example`.
+- [CHANGELOG.md](https://github.com/thomasfosterau/effect-numeric/blob/main/CHANGELOG.md): release notes, written by changesets.
+- [CONTRIBUTING.md](https://github.com/thomasfosterau/effect-numeric/blob/main/CONTRIBUTING.md): development setup and checks.
+- [SECURITY.md](https://github.com/thomasfosterau/effect-numeric/blob/main/SECURITY.md): reporting a vulnerability.
 
 ## License
 
