@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test"
-import { Option, Result, Schema } from "effect"
+import * as Option from "effect/Option"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 import * as fc from "fast-check"
 import * as FixedInt from "../src/FixedInt.ts"
 import { I8 } from "../src/I8.ts"
@@ -12,6 +14,7 @@ import { U16 } from "../src/U16.ts"
 import { U32 } from "../src/U32.ts"
 import { U64 } from "../src/U64.ts"
 import { U128 } from "../src/U128.ts"
+import { getFailure, getSome } from "./helpers.ts"
 
 type Any = FixedInt.FixedInt<any, any>
 
@@ -39,6 +42,8 @@ const ref = (T: Any) => {
 }
 
 const B = (x: number | bigint) => BigInt(x)
+/** Floor of `log_3(n)` for `n >= 1`; recursion depth is at most ~81 for 128-bit inputs. */
+const ilog3 = (n: bigint): number => (n < 3n ? 0 : 1 + ilog3(n / 3n))
 const runs = { numRuns: 300 }
 
 describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
@@ -81,30 +86,54 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
     expect(B(T.saturatingFrom(1e300))).toBe(R.max)
   })
 
-  const binary: ReadonlyArray<[string, (a: bigint, b: bigint) => bigint, boolean]> = [
-    ["Add", (a, b) => a + b, false],
-    ["Sub", (a, b) => a - b, false],
-    ["Mul", (a, b) => a * b, false]
+  const binary = [
+    {
+      op: "add",
+      exact: (a: bigint, b: bigint) => a + b,
+      checked: T.checkedAdd,
+      wrapping: T.wrappingAdd,
+      saturating: T.saturatingAdd,
+      overflowing: T.overflowingAdd,
+      strict: T.add
+    },
+    {
+      op: "sub",
+      exact: (a: bigint, b: bigint) => a - b,
+      checked: T.checkedSub,
+      wrapping: T.wrappingSub,
+      saturating: T.saturatingSub,
+      overflowing: T.overflowingSub,
+      strict: T.sub
+    },
+    {
+      op: "mul",
+      exact: (a: bigint, b: bigint) => a * b,
+      checked: T.checkedMul,
+      wrapping: T.wrappingMul,
+      saturating: T.saturatingMul,
+      overflowing: T.overflowingMul,
+      strict: T.mul
+    }
   ]
-  for (const [op, f] of binary) {
-    it(`${op}: checked / wrapping / saturating / overflowing / strict`, () => {
+  it.each(binary)(
+    "$op: checked / wrapping / saturating / overflowing / strict",
+    ({ exact: f, checked, wrapping, saturating, overflowing, strict }) => {
       fc.assert(
         fc.property(arb(T), arb(T), (a, b) => {
           const exact = f(B(a), B(b))
-          const lower = op.toLowerCase() as "add" | "sub" | "mul"
-          expect((T as any)[`checked${op}`](a, b)).toEqual(R.opt(exact))
-          expect(B((T as any)[`wrapping${op}`](a, b))).toBe(R.wrap(exact))
-          expect(B((T as any)[`saturating${op}`](a, b))).toBe(R.clamp(exact))
-          const [w, o] = (T as any)[`overflowing${op}`](a, b)
+          expect(checked(a, b)).toEqual(R.opt(exact))
+          expect(B(wrapping(a, b))).toBe(R.wrap(exact))
+          expect(B(saturating(a, b))).toBe(R.clamp(exact))
+          const [w, o] = overflowing(a, b)
           expect([B(w), o]).toEqual([R.wrap(exact), !R.inRange(exact)])
-          expect(Result.isSuccess(T[lower](a, b))).toBe(R.inRange(exact))
+          expect(Result.isSuccess(strict(a, b))).toBe(R.inRange(exact))
           // data-last
-          expect((T as any)[`checked${op}`](b)(a)).toEqual(R.opt(exact))
+          expect(checked(b)(a)).toEqual(R.opt(exact))
         }),
         runs
       )
-    })
-  }
+    }
+  )
 
   it("division family", () => {
     const quot = (a: bigint, b: bigint) => a / b
@@ -113,39 +142,41 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
       return [(a - r) / b, r] as const
     }
     fc.assert(
-      fc.property(arb(T), arb(T), (a, b) => {
-        const A = B(a)
-        const Bb = B(b)
-        if (Bb === 0n) {
-          expect(Option.isNone(T.checkedDiv(a, b))).toBe(true)
-          expect(Option.isNone(T.checkedRem(a, b))).toBe(true)
-          expect(() => T.wrappingDiv(a, b)).toThrow(/by zero/)
-          expect(() => T.saturatingDiv(a, b)).toThrow(/by zero/)
-          expect(Result.getFailure(T.div(a, b)).pipe(Option.map((e) => e._tag))).toEqual(
-            Option.some("DivisionByZeroError")
-          )
-          return
-        }
-        const q = quot(A, Bb)
-        const overflowCase = T.signed && A === R.min && Bb === -1n
-        expect(T.checkedDiv(a, b)).toEqual(R.opt(q))
-        expect(B(T.wrappingDiv(a, b))).toBe(R.wrap(q))
-        expect(B(T.saturatingDiv(a, b))).toBe(R.clamp(q))
-        expect(T.overflowingDiv(a, b).map((x: any) => (typeof x === "boolean" ? x : B(x)))).toEqual([
-          R.wrap(q),
-          !R.inRange(q)
-        ])
-        expect(B(T.wrappingRem(a, b))).toBe(A % Bb)
-        expect(Option.isNone(T.checkedRem(a, b))).toBe(overflowCase)
-        expect(T.overflowingRem(a, b)[1]).toBe(overflowCase)
-        const [eq, er] = euclid(A, Bb)
-        expect(T.checkedDivEuclid(a, b)).toEqual(R.opt(eq))
-        expect(B(T.wrappingDivEuclid(a, b))).toBe(R.wrap(eq))
-        expect(B(T.wrappingRemEuclid(a, b))).toBe(er)
-        expect(Option.isNone(T.checkedRemEuclid(a, b))).toBe(overflowCase)
-        expect(B(T.midpoint(a, b))).toBe((A + Bb) / 2n)
-        expect(T.absDiff(a, b)).toBe(A > Bb ? A - Bb : Bb - A)
+      fc.property(arb(T), (a) => {
+        expect(Option.isNone(T.checkedDiv(a, T.zero))).toBe(true)
+        expect(Option.isNone(T.checkedRem(a, T.zero))).toBe(true)
+        expect(() => T.wrappingDiv(a, T.zero)).toThrow(/by zero/)
+        expect(() => T.saturatingDiv(a, T.zero)).toThrow(/by zero/)
+        expect(getFailure(T.div(a, T.zero))._tag).toBe("DivisionByZeroError")
       }),
+      runs
+    )
+    fc.assert(
+      fc.property(
+        arb(T),
+        arb(T).filter((b) => B(b) !== 0n),
+        (a, b) => {
+          const A = B(a)
+          const Bb = B(b)
+          const q = quot(A, Bb)
+          const overflowCase = T.signed && A === R.min && Bb === -1n
+          expect(T.checkedDiv(a, b)).toEqual(R.opt(q))
+          expect(B(T.wrappingDiv(a, b))).toBe(R.wrap(q))
+          expect(B(T.saturatingDiv(a, b))).toBe(R.clamp(q))
+          const [wq, oq] = T.overflowingDiv(a, b)
+          expect([B(wq), oq]).toEqual([R.wrap(q), !R.inRange(q)])
+          expect(B(T.wrappingRem(a, b))).toBe(A % Bb)
+          expect(Option.isNone(T.checkedRem(a, b))).toBe(overflowCase)
+          expect(T.overflowingRem(a, b)[1]).toBe(overflowCase)
+          const [eq, er] = euclid(A, Bb)
+          expect(T.checkedDivEuclid(a, b)).toEqual(R.opt(eq))
+          expect(B(T.wrappingDivEuclid(a, b))).toBe(R.wrap(eq))
+          expect(B(T.wrappingRemEuclid(a, b))).toBe(er)
+          expect(Option.isNone(T.checkedRemEuclid(a, b))).toBe(overflowCase)
+          expect(B(T.midpoint(a, b))).toBe((A + Bb) / 2n)
+          expect(T.absDiff(a, b)).toBe(A > Bb ? A - Bb : Bb - A)
+        }
+      ),
       runs
     )
   })
@@ -181,15 +212,12 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
       }),
       { numRuns: 200 }
     )
-    const modPow = (base: bigint, e: bigint, m: bigint) => {
-      let r = 1n
-      let x = base % m
-      while (e > 0n) {
-        if (e & 1n) r = (r * x) % m
-        x = (x * x) % m
-        e >>= 1n
-      }
-      return r
+    // Square-and-multiply, recursing once per bit of `e` (depth ~30 here).
+    const modPow = (base: bigint, e: bigint, m: bigint): bigint => {
+      if (e === 0n) return 1n % m
+      const half = modPow(base, e >> 1n, m)
+      const sq = (half * half) % m
+      return e & 1n ? (sq * (base % m)) % m : sq
     }
     expect(B(T.wrappingPow(T.make(3), 1_000_000_007))).toBe(R.wrap(modPow(3n, 1_000_000_007n, 1n << B(T.bits))))
     expect(Result.isFailure(T.pow(T.one, -1))).toBe(true)
@@ -245,30 +273,22 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
     fc.assert(
       fc.property(arb(T), (a) => {
         const A = B(a)
-        if (A < 0n) {
-          expect(Option.isNone(T.checkedIsqrt(a))).toBe(true)
-        } else {
-          const r = B(Option.getOrThrow(T.checkedIsqrt(a)))
-          expect(r * r <= A && (r + 1n) * (r + 1n) > A).toBe(true)
-        }
-        if (A <= 0n) {
-          expect(Option.isNone(T.checkedIlog2(a))).toBe(true)
-          expect(Result.isFailure(T.ilog10(a))).toBe(true)
-        } else {
-          expect(Option.getOrThrow(T.checkedIlog2(a))).toBe(A.toString(2).length - 1)
-          expect(Option.getOrThrow(T.checkedIlog10(a))).toBe(A.toString().length - 1)
-          expect(Option.getOrThrow(T.checkedIlog(a, T.make(3)))).toBe(
-            (() => {
-              let n = 0
-              let x = A
-              while (x >= 3n) {
-                x /= 3n
-                n++
-              }
-              return n
-            })()
-          )
-        }
+        // `None` exactly for negative inputs; otherwise the floor of the root.
+        expect(
+          Option.match(T.checkedIsqrt(a), {
+            onNone: () => A < 0n,
+            onSome: (root) => {
+              const r = B(root)
+              return A >= 0n && r * r <= A && (r + 1n) * (r + 1n) > A
+            }
+          })
+        ).toBe(true)
+        // Logarithms are defined for positive inputs only.
+        const positive = (n: number) => (A > 0n ? Option.some(n) : Option.none())
+        expect(T.checkedIlog2(a)).toEqual(positive(A.toString(2).length - 1))
+        expect(T.checkedIlog10(a)).toEqual(positive(A.toString().length - 1))
+        expect(T.checkedIlog(a, T.make(3))).toEqual(positive(ilog3(A)))
+        expect(Result.isFailure(T.ilog10(a))).toBe(A <= 0n)
         expect(T.isPowerOfTwo(a)).toBe(A > 0n && (A & (A - 1n)) === 0n)
         const next = A <= 1n ? 1n : 1n << B((A - 1n).toString(2).length)
         expect(T.checkedNextPowerOfTwo(a)).toEqual(R.opt(next))
@@ -339,7 +359,7 @@ describe("custom widths", () => {
   it("normalises negative zero", () => {
     expect(Object.is(I32.wrappingMul(I32.zero, I32.make(-3)), 0)).toBe(true)
     expect(Object.is(I32.make(-0), 0)).toBe(true)
-    expect(Object.is(Option.getOrThrow(I32.checkedMul(I32.zero, I32.make(-3))), 0)).toBe(true)
+    expect(Object.is(getSome(I32.checkedMul(I32.zero, I32.make(-3))), 0)).toBe(true)
     expect(Object.is(I32.wrappingRem(I32.make(-4), I32.make(2)), 0)).toBe(true)
   })
 })

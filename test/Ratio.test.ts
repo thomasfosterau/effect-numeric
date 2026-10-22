@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vite-plus/test"
-import { Equal, HashSet, Option, pipe, Result, Schema } from "effect"
+import * as Arr from "effect/Array"
+import * as Equal from "effect/Equal"
+import * as HashSet from "effect/HashSet"
+import * as Option from "effect/Option"
+import { pipe } from "effect/Function"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 import * as fc from "fast-check"
 import { Float, Ratio } from "../src/index.ts"
+import { getSome, getSuccess } from "./helpers.ts"
 
 const arbRatio = fc
   .tuple(fc.bigInt({ min: -(10n ** 12n), max: 10n ** 12n }), fc.bigInt({ min: 1n, max: 10n ** 12n }))
@@ -27,9 +34,7 @@ describe("Ratio", () => {
         expect(Ratio.Equivalence(Ratio.add(Ratio.add(a, b), c), Ratio.add(a, Ratio.add(b, c)))).toBe(true)
         expect(Ratio.Equivalence(Ratio.mul(a, Ratio.add(b, c)), Ratio.add(Ratio.mul(a, b), Ratio.mul(a, c)))).toBe(true)
         expect(Ratio.Equivalence(Ratio.sub(Ratio.add(a, b), b), a)).toBe(true)
-        if (!Ratio.isZero(b)) {
-          expect(Ratio.Equivalence(Ratio.mul(Result.getOrThrow(Ratio.div(a, b)), b), a)).toBe(true)
-        }
+        expect(Ratio.isZero(b) || Ratio.Equivalence(Ratio.mul(getSuccess(Ratio.div(a, b)), b), a)).toBe(true)
         expect(Ratio.Order(a, b)).toBe(Math.sign(Ratio.toNumber(a) - Ratio.toNumber(b)) || Ratio.Order(a, b))
       })
     )
@@ -41,7 +46,7 @@ describe("Ratio", () => {
     expect(pipe(a, Ratio.mul(b), Ratio.toString)).toBe("1/18")
     expect(Ratio.checkedDiv(a, Ratio.zero)).toEqual(Option.none())
     expect(Result.isFailure(Ratio.recip(Ratio.zero))).toBe(true)
-    expect(Ratio.toString(Result.getOrThrow(Ratio.pow(Ratio.make(2, 3), -2)))).toBe("9/4")
+    expect(Ratio.toString(getSuccess(Ratio.pow(Ratio.make(2, 3), -2)))).toBe("9/4")
     expect(Result.isFailure(Ratio.pow(Ratio.zero, -1))).toBe(true)
     expect(Ratio.toString(Ratio.mediant(Ratio.make(1, 2), Ratio.make(2, 3)))).toBe("3/5")
     expect(() => Ratio.Field.div(a, Ratio.zero)).toThrow(/by zero/)
@@ -57,23 +62,25 @@ describe("Ratio", () => {
       [-5, 3, -2n, -1n, -1n, -2n],
       [4, 1, 4n, 4n, 4n, 4n]
     ]
-    for (const [n, d, fl, ce, tr, ro] of cases) {
-      const r = Ratio.make(n, d)
-      expect([Ratio.floor(r), Ratio.ceil(r), Ratio.trunc(r), Ratio.round(r)]).toEqual([fl, ce, tr, ro])
-    }
+    expect(
+      Arr.map(cases, ([n, d]) => {
+        const r = Ratio.make(n, d)
+        return [Ratio.floor(r), Ratio.ceil(r), Ratio.trunc(r), Ratio.round(r)]
+      })
+    ).toEqual(Arr.map(cases, ([, , fl, ce, tr, ro]) => [fl, ce, tr, ro]))
     expect(Ratio.toString(Ratio.fract(Ratio.make(-7, 2)))).toBe("-1/2")
     expect(Ratio.toFixed(Ratio.make(2, 3), 4)).toBe("0.6667")
     expect(Ratio.toFixed(Ratio.make(-1, 8), 2)).toBe("-0.13")
     expect(Ratio.toFixed(Ratio.make(5, 2), 0)).toBe("3")
   })
   it("conversions", () => {
-    expect(Ratio.toString(Option.getOrThrow(Ratio.fromNumber(0.375)))).toBe("3/8")
-    expect(Ratio.toString(Option.getOrThrow(Ratio.fromNumber(0.1)))).toBe("3602879701896397/36028797018963968")
+    expect(Ratio.toString(getSome(Ratio.fromNumber(0.375)))).toBe("3/8")
+    expect(Ratio.toString(getSome(Ratio.fromNumber(0.1)))).toBe("3602879701896397/36028797018963968")
     expect(Ratio.fromNumber(Number.NaN)).toEqual(Option.none())
-    expect(Ratio.toNumber(Option.getOrThrow(Ratio.fromNumber(Number.MIN_VALUE)))).toBe(Number.MIN_VALUE)
+    expect(Ratio.toNumber(getSome(Ratio.fromNumber(Number.MIN_VALUE)))).toBe(Number.MIN_VALUE)
     fc.assert(
       fc.property(fc.double({ noNaN: true, noDefaultInfinity: true }), (x) => {
-        expect(Ratio.toNumber(Option.getOrThrow(Ratio.fromNumber(x)))).toBe(x + 0)
+        expect(Ratio.toNumber(getSome(Ratio.fromNumber(x)))).toBe(x + 0)
       })
     )
     expect(Option.map(Ratio.approximate(Math.PI, 1000n), Ratio.toString)).toEqual(Option.some("355/113"))
@@ -89,9 +96,9 @@ describe("Ratio", () => {
         // compare against a correctly rounded reference using exact float decomposition
         const x = Ratio.toNumber(Ratio.make(n, d))
         const r = Ratio.make(n, d)
-        const lo = Option.getOrThrow(Ratio.fromNumber(Float.F64.nextDown(x)))
-        const hi = Option.getOrThrow(Ratio.fromNumber(Float.F64.nextUp(x)))
-        const xr = Option.getOrThrow(Ratio.fromNumber(x))
+        const lo = getSome(Ratio.fromNumber(Float.F64.nextDown(x)))
+        const hi = getSome(Ratio.fromNumber(Float.F64.nextUp(x)))
+        const xr = getSome(Ratio.fromNumber(x))
         const dist = (q: Ratio.Ratio) => Ratio.abs(Ratio.sub(q, r))
         expect(Ratio.Order(dist(xr), dist(lo))).toBeLessThanOrEqual(0)
         expect(Ratio.Order(dist(xr), dist(hi))).toBeLessThanOrEqual(0)

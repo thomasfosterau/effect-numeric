@@ -1,6 +1,12 @@
 // Keeps the examples in README.md honest.
 import { describe, expect, it } from "vite-plus/test"
-import { Array as Arr, Effect, Equal, Option, pipe, Result, Schema } from "effect"
+import * as Arr from "effect/Array"
+import * as Effect from "effect/Effect"
+import * as Equal from "effect/Equal"
+import * as Option from "effect/Option"
+import { pipe } from "effect/Function"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 import {
   Checked,
   Clamped,
@@ -40,8 +46,8 @@ describe("README", () => {
     expect(Schema.decodeUnknownSync(U64.schemaFromString)("18446744073709551615")).toBe(U64.MAX)
   })
 
-  it("Effect integration", () =>
-    Effect.runPromise(
+  it("Effect integration", async () => {
+    await Effect.runPromise(
       Effect.gen(function* () {
         const a = U8.make(200)
         const b = U8.make(100)
@@ -51,7 +57,8 @@ describe("README", () => {
         }).pipe(Effect.catchTag("OverflowError", () => Effect.succeed(U8.MAX)))
         expect(yield* program).toBe(255)
       })
-    ))
+    )
+  })
 
   it("strategies", () => {
     expect(Wrapping.U8.add(U8.make(250), U8.make(10))).toBe(4)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
-import { Option } from "effect"
+import * as Arr from "effect/Array"
+import * as Option from "effect/Option"
 import { Integer, Num, Ratio } from "../src/index.ts"
 
 describe("Num", () => {
@@ -27,21 +28,21 @@ describe("Num", () => {
 
 describe("Integer", () => {
   const I = Num.bigint
-  it("gcd / lcm / extendedGcd", () => {
+  it("gcd / lcm", () => {
     expect(Integer.gcd(I)(12n, -18n)).toBe(6n)
     expect(Integer.gcd(I)(0n, 0n)).toBe(0n)
     expect(Integer.lcm(I)(4n, -6n)).toBe(12n)
     expect(Integer.lcm(I)(0n, 6n)).toBe(0n)
-    for (const [a, b] of [
-      [240n, 46n],
-      [-7n, 3n],
-      [0n, 5n],
-      [17n, -51n]
-    ] as const) {
-      const { gcd, x, y } = Integer.extendedGcd(I)(a, b)
-      expect(a * x + b * y).toBe(gcd)
-      expect(gcd).toBe(Integer.gcd(I)(a, b))
-    }
+  })
+  it.each([
+    [240n, 46n],
+    [-7n, 3n],
+    [0n, 5n],
+    [17n, -51n]
+  ] as const)("extendedGcd(%s, %s) gives Bézout coefficients", (a, b) => {
+    const { gcd, x, y } = Integer.extendedGcd(I)(a, b)
+    expect(a * x + b * y).toBe(gcd)
+    expect(gcd).toBe(Integer.gcd(I)(a, b))
   })
   it("floored / ceiled division", () => {
     expect(Integer.divFloor(I)(-7n, 2n)).toBe(-4n)
@@ -78,14 +79,11 @@ describe("Integer", () => {
     expect(Integer.modInverse(2n, 4n)).toEqual(Option.none())
   })
   it("isPrime", () => {
-    const sieve = (n: number) => {
-      const p = new Array<boolean>(n + 1).fill(true)
-      p[0] = p[1] = false
-      for (let i = 2; i * i <= n; i++) if (p[i]) for (let j = i * i; j <= n; j += i) p[j] = false
-      return p
-    }
-    const s = sieve(5000)
-    for (let i = 0; i <= 5000; i++) expect(Integer.isPrime(BigInt(i))).toBe(s[i])
+    // Trial division up to the square root, as an obviously correct reference.
+    const isPrimeReference = (n: number) =>
+      n >= 2 && Arr.every(Arr.range(2, Math.max(2, Math.floor(Math.sqrt(n)))), (d) => d * d > n || n % d !== 0)
+    const upTo5000 = Arr.makeBy(5001, (i) => i)
+    expect(Arr.map(upTo5000, (i) => Integer.isPrime(BigInt(i)))).toEqual(Arr.map(upTo5000, isPrimeReference))
     expect(Integer.isPrime(2n ** 61n - 1n)).toBe(true)
     expect(Integer.isPrime(2n ** 61n + 1n)).toBe(false)
     expect(Integer.isPrime(3215031751n)).toBe(false) // strong pseudoprime to bases 2, 3, 5, 7

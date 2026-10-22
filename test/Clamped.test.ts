@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test"
-import { Option, Result, Schema } from "effect"
+import * as Option from "effect/Option"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 import * as fc from "fast-check"
 import { Clamped } from "../src/index.ts"
 

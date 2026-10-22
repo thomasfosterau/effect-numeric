@@ -91,6 +91,27 @@ export default defineConfig({
           "effect/no-conditional-empty-object-spread": "off"
         }
       },
+      // `effect-run-in-body` bans every `Effect.run*` call by name. A test body
+      // is the runtime boundary its own message points to: the test runner
+      // awaits the effect the test builds.
+      {
+        files: ["test/**"],
+        rules: {
+          "effect/effect-run-in-body": "off"
+        }
+      },
+      // This file tests the serialisation protocols consumers hit:
+      // `JSON.stringify` (each value object's `toJSON`) and Node's
+      // `util.inspect` (`NodeInspectSymbol`). Calling them directly is the
+      // assertion, so the rules steering domain code away from them do not
+      // apply here.
+      {
+        files: ["test/Misc.test.ts"],
+        rules: {
+          "effect/avoid-direct-json": "off",
+          "effect/avoid-node-imports": "off"
+        }
+      },
       // The numeric kernels (Euclid, Newton's method, square-and-multiply,
       // Miller–Rabin, continued fractions, the lazy range generators). Each
       // iterates a scalar state until a numeric condition holds; there is no
