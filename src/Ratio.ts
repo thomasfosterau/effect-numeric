@@ -51,6 +51,8 @@ export interface Ratio extends Equal.Equal, Pipeable {
   readonly [TypeId]: typeof TypeId
   readonly numer: bigint
   readonly denom: bigint
+  /** The value's canonical text form, as returned by `toString` (and used by `String(value)`). */
+  toString(): string
 }
 
 /** Only `RatioImpl` instances carry `TypeId`, so its presence identifies a {@link Ratio}. */
@@ -506,10 +508,10 @@ export type schema = typeof schema.Type
 export const schemaFromString: Schema.Codec<Ratio, string> = Schema.String.pipe(
   Schema.decodeTo(schema, {
     decode: SchemaGetter.transformEffect((s: string) =>
-      Option.match(parse(s), {
-        onNone: () => Effect.fail(new SchemaIssue.InvalidValue({ message: "Expected a rational number literal" }, s)),
-        onSome: Effect.succeed
-      })
+      Effect.mapError(
+        Effect.fromOption(parse(s)),
+        () => new SchemaIssue.InvalidValue({ message: "Expected a rational number literal" }, s)
+      )
     ),
     encode: SchemaGetter.transform(toString)
   })

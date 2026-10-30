@@ -34,7 +34,7 @@ describe("Complex", () => {
     expect(close(Complex.fromPolar(r, t), z)).toBe(true)
   })
   it("schemas", () => {
-    const decoded = Schema.decodeUnknownSync(Complex.schemaFromStruct)({ re: 1, im: -1 })
+    const decoded = Schema.decodeSync(Complex.schemaFromStruct)({ re: 1, im: -1 })
     expect(Complex.toString(decoded)).toBe("1-1i")
     expect(Schema.encodeSync(Complex.schemaFromStruct)(z)).toEqual({ re: 3, im: 4 })
   })

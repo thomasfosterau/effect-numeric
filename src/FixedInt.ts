@@ -37,7 +37,7 @@ import {
 } from "./ArithmeticError.ts"
 import type { CheckedOps } from "./Checked.ts"
 import * as big from "./internal/bigint.ts"
-import { brandAs } from "./internal/brand.ts"
+import { brandAs, unsafeBrand } from "./internal/brand.ts"
 import { iterateWhile } from "./internal/iterate.ts"
 import { type Bounded, type One, type Operator, operator, type Zero } from "./Num.ts"
 import type { OverflowingOps } from "./Overflowing.ts"
@@ -441,7 +441,7 @@ const build = <A extends R, R extends number | bigint>(
    */
   const inRangeByConstruction = (r: R): A =>
     // SAFETY: every call site passes a value in `[MIN, MAX]`; see the doc comment.
-    r as A
+    unsafeBrand<A, R>(r)
   const MIN = inRangeByConstruction(P.min)
   const MAX = inRangeByConstruction(P.max)
   const ZERO = inRangeByConstruction(P.zero)
@@ -826,7 +826,7 @@ const build = <A extends R, R extends number | bigint>(
       assertShift(n, "rotate")
       return rotateLeft(a, bits - (n % bits))
     }),
-    reverseBits: (a) => fromU(BigInt(`0b${[...toU(a).toString(2).padStart(bits, "0")].reverse().join("")}`)),
+    reverseBits: (a) => fromU(BigInt(`0b${toU(a).toString(2).padStart(bits, "0").split("").reverse().join("")}`)),
     swapBytes: (a) => {
       assertBytes("swapBytes")
       return fromLeBytesExact(toLeBytes(a).reverse())

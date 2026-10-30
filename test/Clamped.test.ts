@@ -62,11 +62,11 @@ describe("Clamped", () => {
   })
 
   it("schemas", () => {
-    expect(Result.isFailure(Schema.decodeUnknownResult(Volume.schema)(12))).toBe(true)
-    expect(Result.isFailure(Schema.decodeUnknownResult(Volume.schema)(1.5))).toBe(true)
-    expect(Schema.decodeUnknownResult(Volume.schema)(5)).toEqual(Result.succeed(5))
-    expect(Schema.decodeUnknownResult(Volume.schemaClamping)(50)).toEqual(Result.succeed(11))
-    expect(Result.isFailure(Schema.decodeUnknownResult(Volume.schemaClamping)(Number.NaN))).toBe(true)
+    expect(Result.isFailure(Schema.decodeResult(Volume.schema)(12))).toBe(true)
+    expect(Result.isFailure(Schema.decodeResult(Volume.schema)(1.5))).toBe(true)
+    expect(Schema.decodeResult(Volume.schema)(5)).toEqual(Result.succeed(5))
+    expect(Schema.decodeResult(Volume.schemaClamping)(50)).toEqual(Result.succeed(11))
+    expect(Result.isFailure(Schema.decodeResult(Volume.schemaClamping)(Number.NaN))).toBe(true)
   })
 
   it("rejects invalid ranges", () => {

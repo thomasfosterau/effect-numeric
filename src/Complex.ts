@@ -40,6 +40,8 @@ export interface Complex extends Equal.Equal, Pipeable {
   readonly [TypeId]: typeof TypeId
   readonly re: number
   readonly im: number
+  /** The value's canonical text form, as returned by `toString` (and used by `String(value)`). */
+  toString(): string
 }
 
 /** Only `ComplexImpl` instances carry `TypeId`, so its presence identifies a {@link Complex}. */

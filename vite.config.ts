@@ -86,12 +86,23 @@ export default defineConfig({
       // `casting-awareness` is an awareness prompt, not a defect rule — it
       // fires on every `as`, including the brand casts every fixed-width
       // constructor is built on (a `number` becomes an `I8` only by `as`
-      // after its range check). Stays visible as a warning.
+      // after its range check). Those casts all live in
+      // `src/internal/brand.ts` (3 sites). Stays visible as a warning.
       "effect/casting-awareness": "warn",
       // Hard-codes abbreviations (`Arr`, `P`, `R`, …) with no options, so it is
       // unsatisfiable under the full-name convention (`import * as Option from
       // "effect/Option"`) this family shares with its consumers.
       "effect/prefer-namespace-imports": "off",
+      // `@effect/tsgo` preset rules that type-aware linting surfaced, left at
+      // the preset's `warn` level until #11 resolves them.
+      // `schema-class-missing-brand` (5 sites, `src/ArithmeticError.ts`):
+      // the brand changes the emitted `.d.ts` of every error class.
+      "effecttsgo/schema-class-missing-brand": "warn",
+      // `schema-number` (8 sites): the `Float` / `F32` / `Complex` schemas
+      // cover IEEE 754 values, NaN and ±Infinity included, so `Schema.Finite`
+      // would change what they accept; the `Clamped` / `FixedInt` sites need
+      // their error messages checked first.
+      "effecttsgo/schema-number": "warn",
       "typescript/no-explicit-any": "off",
       "typescript/no-empty-object-type": "off",
       "typescript/ban-ts-comment": "off",
@@ -172,19 +183,36 @@ export default defineConfig({
       // `Schema.brand`'s output type, so the retyping must step through
       // `unknown`; there is no untrusted input to decode instead (the schema's
       // own checks are the validation). Every other module calls `brandAs`.
+      //
+      // The same file holds `unsafeBrand` and `unbranded`, the only other
+      // brand assertions in the library (AGENTS.md: brand casts go through
+      // this file): a brand is a phantom type with no runtime data, so no type
+      // guard can narrow a `number` to `I8`. Each caller states the invariant
+      // that makes its value a member. That is what the type-aware
+      // `no-unsafe-type-assertion` asks for, so it cannot apply here, and it
+      // stays an error everywhere else. `unsafeBrand`'s brand parameter
+      // appears only in its return type by design (the caller names the
+      // brand), which `no-unnecessary-type-parameters` reads as unused.
       {
         files: ["src/internal/brand.ts"],
         rules: {
           "effect/avoid-any": "off",
-          "effect/no-chained-type-assertions": "off"
+          "effect/no-chained-type-assertions": "off",
+          "typescript/no-unsafe-type-assertion": "off",
+          "typescript/no-unnecessary-type-parameters": "off"
         }
       }
     ],
-    // Type-aware linting is intentionally disabled: type checking stays the
-    // `check` task's job (native tsc, Effect-patched).
+    // Type-aware linting through oxlint-tsgolint (bundled with Vite+, and
+    // Effect-patched by `effect-tsgo patch --oxlint` in `prepare`, so the
+    // `@effect/tsgo` preset's type-aware rules run too). `typeCheck` adds the
+    // TypeScript diagnostics to `vp check`; it duplicates part of the `check`
+    // task (native `tsc`, Effect-patched), which stays the type gate of record
+    // and also checks `vite.config.ts`, but it surfaces a type error in the
+    // same pass as lint at no measurable cost here.
     options: {
-      typeAware: false,
-      typeCheck: false
+      typeAware: true,
+      typeCheck: true
     },
     jsPlugins: [
       {

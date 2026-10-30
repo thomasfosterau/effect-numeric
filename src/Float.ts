@@ -20,7 +20,7 @@ import * as Brand from "effect/Brand"
 import type * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
-import { brandAs } from "./internal/brand.ts"
+import { brandAs, unbranded, unsafeBrand } from "./internal/brand.ts"
 import { type Bounded, type Fractional, type Operator, type OrderedNum, operator, type Signed } from "./Num.ts"
 
 /**
@@ -157,7 +157,7 @@ export const makeFloat = <A extends number>(config: {
     // output of `config.round` or `config.nextUp`, the negation of a value
     // (exact in IEEE 754), or one of the constants below (0, 1, ±0, ±Infinity,
     // NaN and the type's own epsilon / minPositive / maxFinite).
-    n as A
+    unsafeBrand<A, number>(n)
   const r = (n: number): A => value(config.round(n))
   const u =
     (f: (n: number) => number) =>
@@ -316,18 +316,13 @@ const refined = <A extends number & Brand.Brand<any>>(
   message: string,
   ctor: Brand.Constructor<A>
 ): RefinedFloat<A> => {
-  /** Views a plain number as `A`'s unbranded representation. */
-  const unbranded = (n: number): Brand.Brand.Unbranded<A> =>
-    // SAFETY: `A` is `number & Brand<K>`, so its unbranded type is `number`;
-    // TypeScript cannot reduce `Unbranded<A>` for a generic `A`.
-    n as Brand.Brand.Unbranded<A>
   const lift = (f: (x: number, y: number) => number): Operator<A, A, Option.Option<A>> =>
-    operator((x: A, y: A) => ctor.option(unbranded(f(x, y))))
+    operator((x: A, y: A) => ctor.option(unbranded<A>(f(x, y))))
   const extra = {
     schema: brandAs<A, number>(
       Schema.Number.pipe(
         Schema.check(
-          Schema.makeFilter((n: number) => ctor.is(unbranded(n)) || message, {
+          Schema.makeFilter((n: number) => ctor.is(unbranded<A>(n)) || message, {
             // The identifier names the JSON Schema definition of the encoded number.
             identifier: `${name}Encoded`,
             title: name,
@@ -342,11 +337,15 @@ const refined = <A extends number & Brand.Brand<any>>(
     sub: lift((x, y) => x - y),
     mul: lift((x, y) => x * y),
     div: lift((x, y) => x / y),
-    map: operator((x: A, f: (n: number) => number) => ctor.option(unbranded(f(x))))
+    map: operator((x: A, f: (n: number) => number) => ctor.option(unbranded<A>(f(x))))
   }
   const self: RefinedFloat<A> = Object.assign(
     (n: Brand.Brand.Unbranded<A>) => ctor(n),
-    { option: ctor.option, result: ctor.result, is: ctor.is },
+    {
+      option: (n: Brand.Brand.Unbranded<A>) => ctor.option(n),
+      result: (n: Brand.Brand.Unbranded<A>) => ctor.result(n),
+      is: (u: Brand.Brand.Unbranded<A>): u is Brand.Brand.Unbranded<A> & A => ctor.is(u)
+    },
     extra
   )
   return self

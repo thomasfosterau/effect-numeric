@@ -4,7 +4,7 @@ Maintained by Thomas Foster, with a workflow meant to be approachable for both h
 
 ## Setup
 
-You need Node.js 22 or later (CI runs the latest release) and pnpm 11 (`corepack enable` picks up the version pinned by `packageManager`). Use pnpm only: no other package manager or lockfile. Then:
+You need Node.js 22 or later (CI runs the newest stable release) and pnpm 11 (`corepack enable` picks up the version pinned by `packageManager`). Use pnpm only: no other package manager or lockfile. Then:
 
 ```sh
 pnpm install

@@ -71,8 +71,8 @@ Each module also provides `pow`, shifts, `divEuclid` / `remEuclid`, `abs`, `sign
 ```ts
 import { Schema } from "effect"
 
-Schema.decodeUnknownSync(U8.schema)(42) // 42 as U8
-Schema.decodeUnknownSync(U64.schemaFromString)("18446744073709551615") // U64.MAX
+Schema.decodeSync(U8.schema)(42) // 42 as U8
+Schema.decodeSync(U64.schemaFromString)("18446744073709551615") // U64.MAX
 ```
 
 Types of up to 32 bits are represented by `number`, wider types by `bigint`.

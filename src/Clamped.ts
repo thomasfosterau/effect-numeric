@@ -39,7 +39,7 @@ import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import * as SchemaIssue from "effect/SchemaIssue"
 import { DivisionByZeroError, DomainError, OutOfRangeError } from "./ArithmeticError.ts"
-import { brandAs } from "./internal/brand.ts"
+import { brandAs, unsafeBrand } from "./internal/brand.ts"
 import { type Bounded, type Operator, operator } from "./Num.ts"
 
 /**
@@ -211,7 +211,7 @@ const build = <A extends number>(options: Options<number, number>, integer: bool
     // SAFETY: every caller passes `min`, `max`, a value that passed
     // `isMember`, or a value it has clamped / wrapped into `[min, max]`
     // (truncated first when `integer`).
-    n as A
+    unsafeBrand<A, number>(n)
   const clamp = (n: number, operation = "clamp"): A => {
     if (Number.isNaN(n)) throw new DomainError({ operation, type: name, reason: "result is NaN" })
     const m = integer ? Math.trunc(n) : n
@@ -231,7 +231,7 @@ const build = <A extends number>(options: Options<number, number>, integer: bool
   const position = (a: A): UnitInterval =>
     // SAFETY: `min <= a <= max`, so `(a - min) / width` lies in `[0, 1]`
     // (and a zero-width range maps to 0).
-    (width === 0 ? 0 : (a - min) / width) as UnitInterval
+    unsafeBrand<UnitInterval, number>(width === 0 ? 0 : (a - min) / width)
 
   const schema = brandAs<A, number>(
     Schema.Number.pipe(
