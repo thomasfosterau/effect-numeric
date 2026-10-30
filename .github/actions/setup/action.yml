@@ -23,7 +23,13 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: latest
+        # Newest stable Node, never `latest`: setup-node resolves `latest` to
+        # the first entry of the nodejs.org index, pre-releases included (since
+        # 2026-10-29 that is v27.0.0-alpha, which hangs some test suites;
+        # effect-svelte#214). `*` with `check-latest` reads setup-node's stable
+        # manifest instead. The Release workflow pins its own major (22.x).
+        node-version: "*"
+        check-latest: true
         cache: pnpm
 
     # Retried: pnpm's linker can race itself when a package with a build

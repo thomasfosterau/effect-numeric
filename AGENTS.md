@@ -33,7 +33,7 @@ A new public module is a new `src/<Module>.ts` (it becomes `effect-numeric/<Modu
 ## Commands
 
 - `pnpm install` — dependencies plus the Vite+ git hooks (pre-commit runs `vp staged`: format + lint on staged files) and the `prepare` step that patches the native `tsc` / `oxlint` with `@effect/tsgo`. No pre-push hook: run the gates yourself.
-- `vp check` — format + lint (Oxfmt + Oxlint with the Effect presets: `@enfect/oxlint`'s `recommended` and `@effect/tsgo`'s, plus oxlint's `correctness`, `suspicious` and `perf` categories and its `import` / `promise` / `vitest` / `jsdoc` / `node` plugins). `vp run check` — the type gate (native, Effect-patched `tsc` over `src`, `test` and `vite.config.ts`). They are different commands.
+- `vp check` — format + lint (Oxfmt + Oxlint with the Effect presets: `@enfect/oxlint`'s `recommended` and `@effect/tsgo`'s, plus oxlint's `correctness`, `suspicious` and `perf` categories and its `import` / `promise` / `vitest` / `jsdoc` / `node` plugins). Lint is type-aware through oxlint-tsgolint (`typeAware` + `typeCheck` in `vite.config.ts`), so `vp check` also runs the type-aware rules and TypeScript's diagnostics. `vp run check` — the type gate (native, Effect-patched `tsc` over `src`, `test` and `vite.config.ts`). They are different commands.
 - `vp run test:unit` — the unit and property tests.
 - `vp run build` — `vp pack` → `dist/`.
 - `vp run check:exports` — publint (strict) and "are the types wrong" over the built package (builds first).

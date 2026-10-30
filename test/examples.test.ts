@@ -48,8 +48,8 @@ describe("README", () => {
     expect(I8.checkedDiv(I8.MIN, I8.make(-1))).toEqual(Option.none())
     expect(I8.remEuclid(I8.make(-7), I8.make(3))).toEqual(Result.succeed(2))
     expect(U64.wrappingMul(U64.MAX, U64.MAX)).toBe(1n)
-    expect(Schema.decodeUnknownSync(U8.schema)(42)).toBe(42)
-    expect(Schema.decodeUnknownSync(U64.schemaFromString)("18446744073709551615")).toBe(U64.MAX)
+    expect(Schema.decodeSync(U8.schema)(42)).toBe(42)
+    expect(Schema.decodeSync(U64.schemaFromString)("18446744073709551615")).toBe(U64.MAX)
   })
 
   it("Effect integration", async () => {
