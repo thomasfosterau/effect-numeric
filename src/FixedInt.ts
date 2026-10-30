@@ -411,6 +411,14 @@ export const convert =
 // implementation
 // -----------------------------------------------------------------------------
 
+/** Truncates toward zero; `None` for `NaN` and the infinities. */
+const truncate = (value: number | bigint): Option.Option<bigint> =>
+  Predicate.isBigInt(value)
+    ? Option.some(value)
+    : Number.isFinite(value)
+      ? Option.some(BigInt(Math.trunc(value)))
+      : Option.none()
+
 const build = <A extends R, R extends number | bigint>(
   spec: Spec,
   P: Prim<R>,
@@ -490,13 +498,6 @@ const build = <A extends R, R extends number | bigint>(
       onNone: () => Result.fail(outOfRange(value)),
       onSome: Result.succeed
     })
-  /** Truncates toward zero; `None` for `NaN` and the infinities. */
-  const truncate = (value: number | bigint): Option.Option<bigint> =>
-    Predicate.isBigInt(value)
-      ? Option.some(value)
-      : Number.isFinite(value)
-        ? Option.some(BigInt(Math.trunc(value)))
-        : Option.none()
   const wrappingFrom = (value: number | bigint): A => {
     if (repr === "number" && P.isRepr(value) && Number.isSafeInteger(value)) return wrap(value)
     return Option.match(truncate(value), { onNone: () => ZERO, onSome: (b) => fromU(BigInt.asUintN(bits, b)) })

@@ -70,8 +70,8 @@ describe("Clamped", () => {
   })
 
   it("rejects invalid ranges", () => {
-    expect(() => Clamped.make({ min: 1, max: 0 })).toThrow()
-    expect(() => Clamped.int({ min: 0.5, max: 1 })).toThrow()
-    expect(() => Clamped.make({ min: 0, max: Number.POSITIVE_INFINITY })).toThrow()
+    expect(() => Clamped.make({ min: 1, max: 0 })).toThrow(/invalid range/)
+    expect(() => Clamped.int({ min: 0.5, max: 1 })).toThrow(/bounds must be safe integers/)
+    expect(() => Clamped.make({ min: 0, max: Number.POSITIVE_INFINITY })).toThrow(/invalid range/)
   })
 })

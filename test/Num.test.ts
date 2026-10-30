@@ -3,6 +3,10 @@ import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
 import { Integer, Num, Ratio } from "../src/index.ts"
 
+/** Trial division up to the square root, as an obviously correct reference for `isPrime`. */
+const isPrimeReference = (n: number) =>
+  n >= 2 && Arr.every(Arr.range(2, Math.max(2, Math.floor(Math.sqrt(n)))), (d) => d * d > n || n % d !== 0)
+
 describe("Num", () => {
   it("generic folds", () => {
     expect(Num.sum(Num.number)([1, 2, 3])).toBe(6)
@@ -79,9 +83,6 @@ describe("Integer", () => {
     expect(Integer.modInverse(2n, 4n)).toEqual(Option.none())
   })
   it("isPrime", () => {
-    // Trial division up to the square root, as an obviously correct reference.
-    const isPrimeReference = (n: number) =>
-      n >= 2 && Arr.every(Arr.range(2, Math.max(2, Math.floor(Math.sqrt(n)))), (d) => d * d > n || n % d !== 0)
     const upTo5000 = Arr.makeBy(5001, (i) => i)
     expect(Arr.map(upTo5000, (i) => Integer.isPrime(BigInt(i)))).toEqual(Arr.map(upTo5000, isPrimeReference))
     expect(Integer.isPrime(2n ** 61n - 1n)).toBe(true)

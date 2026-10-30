@@ -13,7 +13,7 @@
 
 import { defineConfig } from "vite-plus"
 import { recommended } from "@effect/tsgo/oxlint-presets"
-import effect from "@mpsuesser/oxlint-plugin-effect"
+import effect from "@enfect/oxlint"
 
 /**
  * Input fingerprint for the cached tasks: auto tracking minus node_modules
@@ -53,8 +53,14 @@ export default defineConfig({
   lint: {
     ignorePatterns: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
     extends: [recommended, effect.configs.recommended],
+    // Oxlint's built-in rule families beyond its defaults: `import`,
+    // `promise`, `vitest`, `jsdoc` and `node`, with the `suspicious` and
+    // `perf` categories on top of `correctness`.
+    plugins: ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "vitest", "jsdoc", "node"],
     categories: {
-      correctness: "error"
+      correctness: "error",
+      suspicious: "error",
+      perf: "error"
     },
     rules: {
       "eslint/no-unused-vars": [
@@ -65,6 +71,18 @@ export default defineConfig({
         }
       ],
       "eslint/prefer-const": "warn",
+      // `_tag` is Effect's discriminant on every tagged value (the
+      // `ArithmeticError` family included); tests read it to check which
+      // error a `Result` carries.
+      "eslint/no-underscore-dangle": ["error", { allow: ["_tag"] }],
+      // `@category` is the Effect / docgen convention every export carries
+      // (AGENTS.md, Conventions); `@copyright` heads the config file.
+      "jsdoc/check-tag-names": ["error", { definedTags: ["category", "copyright"] }],
+      // The fix it offers, `toReversed()`, is ES2023, past this package's
+      // `lib: ["ES2022"]` (the published floor). Every `.reverse()` here runs
+      // on an array or `Uint8Array` the same expression just built, so
+      // nothing shared is mutated.
+      "unicorn/no-array-reverse": "off",
       // `casting-awareness` is an awareness prompt, not a defect rule — it
       // fires on every `as`, including the brand casts every fixed-width
       // constructor is built on (a `number` becomes an `I8` only by `as`

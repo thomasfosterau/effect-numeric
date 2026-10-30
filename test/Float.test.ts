@@ -76,7 +76,7 @@ describe("NotNaN / Finite", () => {
   it("refines", () => {
     expect(Float.NotNaN.option(Number.NaN)).toEqual(Option.none())
     expect(Float.NotNaN(1)).toBe(1)
-    expect(() => Float.NotNaN(Number.NaN)).toThrow()
+    expect(() => Float.NotNaN(Number.NaN)).toThrow(/not NaN/)
     const inf = Float.NotNaN(Number.POSITIVE_INFINITY)
     expect(Float.NotNaN.sub(inf, inf)).toEqual(Option.none())
     expect(Float.Finite.mul(Float.Finite(1e300), Float.Finite(1e300))).toEqual(Option.none())

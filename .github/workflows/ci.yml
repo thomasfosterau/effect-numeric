@@ -17,7 +17,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
-# No permissions by default; the single job grants only read access.
+# No permissions by default; the single job grants only read access. The job
+# needs no secrets or OIDC, so a Dependabot PR (which runs with a read-only
+# token and no secrets) gets the same gate as any other PR. Every action is
+# pinned to a full commit SHA (Dependabot's `github-actions` ecosystem keeps
+# the pins current) and the checkout keeps no credentials.
 permissions: {}
 
 jobs:
@@ -44,16 +48,16 @@ jobs:
           restore-keys: |
             vp-task-v1-${{ runner.os }}-
       - name: Format and lint
-        run: vp check
+        run: pnpm exec vp check
       - name: Type gate
-        run: vp run check
+        run: pnpm exec vp run check
       - name: Unit tests
-        run: vp run test:unit
+        run: pnpm exec vp run test:unit
       - name: Build
-        run: vp run build
+        run: pnpm exec vp run build
       # publint (strict) over the manifest and dist/, then "are the types
       # wrong" over the packed tarball.
       - name: Dist check (publint + attw)
-        run: vp run check:exports
+        run: pnpm exec vp run check:exports
       - name: Audit
         run: pnpm audit --audit-level high

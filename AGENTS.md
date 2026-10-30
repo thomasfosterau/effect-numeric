@@ -12,7 +12,7 @@ A new public module is a new `src/<Module>.ts` (it becomes `effect-numeric/<Modu
 
 ## Common pitfalls
 
-- **Never edit a version in `package.json`.** Versions live in the `pnpm-workspace.yaml` catalog (`catalogMode: strict` rejects anything else). After editing it, run `pnpm install` and commit `pnpm-lock.yaml`, or CI fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`. `@effect/tsgo`, `@typescript/native` and `vite-plus` move together (the tsgo patch hard-errors at install on an unsupported `tsc` or `oxlint`); read their catalog comments first.
+- **Never edit a version in `package.json`.** Versions live in the `pnpm-workspace.yaml` catalog (`catalogMode: strict` rejects anything else). After editing it, run `pnpm install` and commit `pnpm-lock.yaml`, or CI fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`. `@effect/tsgo`, `@typescript/native` and `vite-plus` move together (the tsgo patch hard-errors at install on an unsupported `tsc` or `oxlint`); read their catalog comments first. Dependabot's `toolchain` group proposes that set (with `@enfect/oxlint`) as one PR, but cannot move the npm-alias entries (`vite`, `typescript`, `@typescript/native`) or the `vitest` pin vite-plus dictates: make those by hand on its branch (`pnpm dlx --package=vite-plus@<v> vp migrate --no-interactive` does the Vite+ part; drop any `minimumReleaseAgeExclude` entries it adds). `.github/dependabot.yml`'s header lists them.
 - **`dist/` is the product.** `vp pack` (tsdown, unbundled) emits one ESM module + `.d.ts` per `src` module; `exports` points at `dist/`. `vp run check:exports` (publint + attw) is the only check that reads it.
 - **`"sideEffects": false` is a claim about `dist/`, and it is load-bearing.** Every module-level value built by a call (`FixedInt.make(...)`, `makeFloat(...)`, `refined(...)`, the `Wrapping.*` / `Saturating.*` / `Checked.*` instances) is annotated `/* @__PURE__ */`; a new one must be too, and no module may run a top-level statement.
 - **`effect` is a peer, never a dependency.** Two copies break `Equal` / `Hash` / `Schema` identity; the consumer owns the singleton. The peer range is `catalogs.peers.effect`; raising it is a breaking change.
@@ -33,7 +33,7 @@ A new public module is a new `src/<Module>.ts` (it becomes `effect-numeric/<Modu
 ## Commands
 
 - `pnpm install` — dependencies plus the Vite+ git hooks (pre-commit runs `vp staged`: format + lint on staged files) and the `prepare` step that patches the native `tsc` / `oxlint` with `@effect/tsgo`. No pre-push hook: run the gates yourself.
-- `vp check` — format + lint (Oxfmt + Oxlint with the Effect presets). `vp run check` — the type gate (native, Effect-patched `tsc` over `src`, `test` and `vite.config.ts`). They are different commands.
+- `vp check` — format + lint (Oxfmt + Oxlint with the Effect presets: `@enfect/oxlint`'s `recommended` and `@effect/tsgo`'s, plus oxlint's `correctness`, `suspicious` and `perf` categories and its `import` / `promise` / `vitest` / `jsdoc` / `node` plugins). `vp run check` — the type gate (native, Effect-patched `tsc` over `src`, `test` and `vite.config.ts`). They are different commands.
 - `vp run test:unit` — the unit and property tests.
 - `vp run build` — `vp pack` → `dist/`.
 - `vp run check:exports` — publint (strict) and "are the types wrong" over the built package (builds first).

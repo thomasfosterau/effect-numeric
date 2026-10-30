@@ -195,6 +195,9 @@ export const int = <const Min extends number, const Max extends number>(
   return build(options, true)
 }
 
+/** Normalises `-0` to `0`. */
+const norm = (n: number) => n + 0
+
 const build = <A extends number>(options: Options<number, number>, integer: boolean): ClampedModule<A> => {
   const { min, max } = options
   if (!(Number.isFinite(min) && Number.isFinite(max)) || min > max) {
@@ -203,7 +206,6 @@ const build = <A extends number>(options: Options<number, number>, integer: bool
   const name = options.name ?? `${integer ? "ClampedInt" : "Clamped"}[${min}, ${max}]`
   const width = max - min
   const isMember = (n: number) => n >= min && n <= max && (!integer || Number.isInteger(n))
-  const norm = (n: number) => n + 0
   /** Brands a number that is a member of the type (in range, and integral when `integer`). */
   const member = (n: number): A =>
     // SAFETY: every caller passes `min`, `max`, a value that passed
