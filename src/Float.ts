@@ -136,6 +136,12 @@ export const totalOrder: Order.Order<number> = (a, b) => {
   return 0
 }
 
+/** Rounds half away from zero (`Math.round` rounds half toward +∞). */
+const roundAway = (n: number) => (n < 0 ? -Math.round(-n) : Math.round(n))
+
+/** Rounds half to even (banker's rounding). */
+const roundTiesEven = (n: number) => (Math.abs(n % 1) === 0.5 ? 2 * Math.round(n / 2) : Math.round(n))
+
 /** @internal */
 export const makeFloat = <A extends number>(config: {
   readonly round: (n: number) => number
@@ -160,8 +166,6 @@ export const makeFloat = <A extends number>(config: {
   const b = (f: (x: number, y: number) => number): Operator<A> => operator((x: A, y: A) => r(f(x, y)))
   const nextUp = (n: A): A => value(config.nextUp(n))
   const nextDown = (n: A): A => value(-config.nextUp(-n))
-  const roundAway = (n: number) => (n < 0 ? -Math.round(-n) : Math.round(n))
-  const roundTiesEven = (n: number) => (Math.abs(n % 1) === 0.5 ? 2 * Math.round(n / 2) : Math.round(n))
   return {
     mantissaDigits: config.mantissaDigits,
     zero: value(0),

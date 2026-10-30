@@ -1,0 +1,20 @@
+# zizmor (GitHub Actions static analysis) settings. Run it with
+# `uvx zizmor .github`; every exception below names its reason.
+rules:
+  # The owner's supply-chain delay is pnpm's `minimumReleaseAge` (8 hours);
+  # Dependabot's `cooldown` takes whole days, so 1 day is the shortest value
+  # that still never proposes a version pnpm would refuse. zizmor's default
+  # asks for 7.
+  dependabot-cooldown:
+    config:
+      days: 1
+  # The Changesets action pushes the "chore: version packages" branch and the
+  # release tags with the checkout's job-scoped GITHUB_TOKEN, so the release
+  # checkout must keep its credentials. The job uploads no artifacts.
+  artipacked:
+    ignore:
+      - release.yml
+  # `./.github/actions/setup` is the documented local-action form; keep it
+  # until the `$/` self-repository syntax is documented by GitHub Actions.
+  self-repository:
+    disable: true

@@ -9,19 +9,36 @@
 #   matches the native `tsc` (`@typescript/native`) and that `oxlint` by
 #   version / gitHead and hard-errors (UnsupportedTargetPackageVersionError)
 #   on any pairing it has no artifact for, failing `pnpm install` itself. The
-#   TS6 alias (`typescript`) and the Effect lint plugin ride along. A PR
-#   moving one of them alone goes red, so they are one group. Check the
-#   `components` table in node_modules/@effect/tsgo/dist/effect-tsgo.cjs on
-#   every toolchain PR.
+#   TS6 alias (`typescript`) and the Effect lint preset (`@enfect/oxlint`)
+#   ride along. A PR moving one of them alone goes red, so they are one
+#   group. Check the `components` table in
+#   node_modules/@effect/tsgo/dist/effect-tsgo.cjs on every toolchain PR.
 # - `effect`: the Effect 4 release line is a lockstep-versioned singleton set
-#   (`@effect/tsgo` belongs to the toolchain above).
+#   (`@effect/tsgo` belongs to the toolchain above). `@enfect/oxlint` depends
+#   on one exact `effect`, which the `effect` override forces onto the catalog
+#   pin; when an `effect` PR crosses a minor, check the plugin still loads
+#   (`vp check`) and bump it in the same PR if it does not.
+#
+# Moves Dependabot cannot make (by hand, in the toolchain PR):
+# - the npm-alias catalog entries: `vite`
+#   (`npm:@voidzero-dev/vite-plus-core@<v>`, must equal `vite-plus`),
+#   `typescript` (`npm:@typescript/typescript6@<v>`) and `@typescript/native`
+#   (`npm:typescript@<v>`, must match `@effect/tsgo`'s bundled binary);
+# - `vitest` and `@vitest/coverage-istanbul`, which must equal the vitest
+#   vite-plus pins (`vp toolchain vitest`), and the `vite@*` / `vitest@*`
+#   overrides that point at them. The easiest path is
+#   `pnpm dlx --package=vite-plus@<v> vp migrate --no-interactive` on the
+#   toolchain PR's branch, then dropping any `minimumReleaseAgeExclude`
+#   entries it adds.
 # - `tsx`, `changesets`, `fallow`, `dist-check`: each a tool with its own
 #   cadence, kept apart from the catch-all so a break is easy to attribute.
 # - `minor-and-patch`: everything else that is not a major bump. A major bump
 #   of an ungrouped dependency (`@types/node`, `fast-check`) arrives alone.
 #
-# `cooldown` mirrors pnpm-workspace.yaml's `minimumReleaseAge` (1 day), with
-# first-party `@thomasfosterau/*` exempt as it is there.
+# `cooldown` backs pnpm-workspace.yaml's `minimumReleaseAge` (480 minutes, 8
+# hours). Dependabot only takes whole days, so it waits 1 day: longer than
+# pnpm's 8 hours, so a Dependabot PR never proposes a version pnpm would still
+# refuse to install. First-party `@thomasfosterau/*` is exempt in both.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -44,16 +61,19 @@ updates:
         patterns:
           - "vite-plus"
           - "vite"
+          - "@voidzero-dev/*"
           - "vitest"
           - "@vitest/*"
           - "oxlint"
+          - "@oxlint/*"
           - "oxfmt"
           - "oxlint-tsgolint"
           - "@effect/tsgo"
+          - "@effect/language-service"
           - "@typescript/native"
           - "typescript"
           - "@typescript/typescript6"
-          - "@mpsuesser/oxlint-plugin-effect"
+          - "@enfect/*"
       effect:
         applies-to: version-updates
         patterns:

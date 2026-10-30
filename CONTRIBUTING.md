@@ -22,7 +22,7 @@ Hooks are managed by Vite+; the editable [.vite-hooks/pre-commit](.vite-hooks/pr
 
 ## CI expectations
 
-[ci.yml](.github/workflows/ci.yml) runs one required job, `ci`, whose steps are the gate list in [AGENTS.md](AGENTS.md#verification). [release.yml](.github/workflows/release.yml) runs changesets/action on `trunk`: it opens the version PR while unreleased changesets exist and publishes once it merges, via npm OIDC trusted publishing (see [PUBLISHING.md](PUBLISHING.md)).
+[ci.yml](.github/workflows/ci.yml) runs one required job, `ci`, whose steps are the gate list in [AGENTS.md](AGENTS.md#verification). [release.yml](.github/workflows/release.yml) runs changesets/action on `trunk`: it opens the version PR while unreleased changesets exist and publishes once it merges, via npm OIDC trusted publishing (see [PUBLISHING.md](PUBLISHING.md)). Both workflows default to `permissions: {}` and grant per job only what it needs; every action is pinned to a commit SHA; `ci` needs no secrets or OIDC (so a Dependabot PR runs the full gate with nothing to steal) and keeps no checkout credentials; `release` never runs for a Dependabot push. `uvx zizmor .github` audits them (exceptions in [.github/zizmor.yml](.github/zizmor.yml)).
 
 ## Pre-PR checklist
 

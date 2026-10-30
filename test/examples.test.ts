@@ -26,6 +26,12 @@ import {
   Wrapping
 } from "../src/index.ts"
 
+/** The README's "generic code" example, at module scope as it is there. */
+const mean =
+  <A>(N: Num.Fractional<A>, fromCount: (n: number) => A) =>
+  (xs: ReadonlyArray<A>) =>
+    N.div(Num.sum(N)(xs), fromCount(xs.length))
+
 describe("README", () => {
   it("fixed-width integers", () => {
     const a = U8.make(200)
@@ -101,10 +107,6 @@ describe("README", () => {
   })
 
   it("generic code", () => {
-    const mean =
-      <A>(N: Num.Fractional<A>, fromCount: (n: number) => A) =>
-      (xs: ReadonlyArray<A>) =>
-        N.div(Num.sum(N)(xs), fromCount(xs.length))
     expect(Ratio.toString(mean(Ratio.Field, Ratio.fromInteger)([Ratio.make(1), Ratio.make(2)]))).toBe("3/2")
     expect(Integer.extendedGcd(Num.bigint)(240n, 46n)).toEqual({ gcd: 2n, x: -9n, y: 47n })
     expect(Integer.divFloor(Num.bigint)(-7n, 2n)).toBe(-4n)

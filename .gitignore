@@ -153,3 +153,4 @@ fallow.sarif
 .claude/scheduled_tasks.lock
 # The generated git-hook runner; the editable hook itself is committed.
 .vite-hooks/_/
+.vitest/

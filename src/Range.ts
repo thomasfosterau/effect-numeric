@@ -88,6 +88,7 @@ export const rangeStepInclusive = <A>(N: OrderedNum<A>) =>
  * `count` evenly spaced values from `start` to `end` inclusive (NumPy's
  * `linspace`).
  *
+ * @yields The `count` values, in order; the last is exactly `end`.
  * @category constructors
  * @since 0.1.0
  */

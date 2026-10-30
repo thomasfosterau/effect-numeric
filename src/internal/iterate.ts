@@ -2,7 +2,10 @@ import * as Option from "effect/Option"
 
 /**
  * Lazily yields `start`, `next(start)`, … while `cont` holds. A generator,
- * so nothing is computed until the caller iterates. @internal
+ * so nothing is computed until the caller iterates.
+ *
+ * @yields Each value of the sequence, starting with `start`.
+ * @internal
  */
 export function* iterateWhile<A>(start: A, cont: (a: A) => boolean, next: (a: A) => A): IterableIterator<A> {
   for (let x = start; cont(x); x = next(x)) yield x
@@ -10,7 +13,10 @@ export function* iterateWhile<A>(start: A, cont: (a: A) => boolean, next: (a: A)
 
 /**
  * `count` evenly spaced values from `start` to `end` inclusive (`count >= 2`),
- * with the last value exactly `end`. @internal
+ * with the last value exactly `end`.
+ *
+ * @yields The `count` values, in order.
+ * @internal
  */
 export function* evenlySpaced(start: number, end: number, count: number): IterableIterator<number> {
   for (let k = 0; k < count; k++) yield k === count - 1 ? end : start + ((end - start) * k) / (count - 1)

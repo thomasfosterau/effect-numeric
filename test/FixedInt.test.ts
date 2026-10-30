@@ -44,6 +44,13 @@ const ref = (T: Any) => {
 const B = (x: number | bigint) => BigInt(x)
 /** Floor of `log_3(n)` for `n >= 1`; recursion depth is at most ~81 for 128-bit inputs. */
 const ilog3 = (n: bigint): number => (n < 3n ? 0 : 1 + ilog3(n / 3n))
+/** Truncating division, the reference for `div` / `rem`. */
+const quot = (a: bigint, b: bigint) => a / b
+/** Euclidean division (non-negative remainder), the reference for `divEuclid` / `remEuclid`. */
+const euclid = (a: bigint, b: bigint) => {
+  const r = ((a % b) + (b < 0n ? -b : b)) % (b < 0n ? -b : b)
+  return [(a - r) / b, r] as const
+}
 const runs = { numRuns: 300 }
 
 describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
@@ -63,7 +70,7 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
     expect(Option.isNone(T.from(R.min - 1n))).toBe(true)
     expect(Option.isNone(T.from(0.5))).toBe(true)
     expect(Option.isNone(T.from(Number.NaN))).toBe(true)
-    expect(() => T.make(R.max + 1n)).toThrow()
+    expect(() => T.make(R.max + 1n)).toThrow(/is not a valid value in range/)
     expect(Result.isFailure(T.fromResult(R.max + 1n))).toBe(true)
     expect(T.is(T.MAX)).toBe(true)
     expect(T.is(T.repr === "number" ? 0.5 : 0)).toBe(false)
@@ -136,11 +143,6 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
   )
 
   it("division family", () => {
-    const quot = (a: bigint, b: bigint) => a / b
-    const euclid = (a: bigint, b: bigint) => {
-      const r = ((a % b) + (b < 0n ? -b : b)) % (b < 0n ? -b : b)
-      return [(a - r) / b, r] as const
-    }
     fc.assert(
       fc.property(arb(T), (a) => {
         expect(Option.isNone(T.checkedDiv(a, T.zero))).toBe(true)
@@ -221,7 +223,7 @@ describe.each(all.map((T) => [T.name, T] as const))("%s", (_name, T) => {
     }
     expect(B(T.wrappingPow(T.make(3), 1_000_000_007))).toBe(R.wrap(modPow(3n, 1_000_000_007n, 1n << B(T.bits))))
     expect(Result.isFailure(T.pow(T.one, -1))).toBe(true)
-    expect(() => T.checkedPow(T.one, 1.5)).toThrow()
+    expect(() => T.checkedPow(T.one, 1.5)).toThrow(/exponent must be a non-negative integer/)
   })
 
   it("shifts and rotations", () => {
@@ -348,8 +350,8 @@ describe("custom widths", () => {
     expect(Option.isNone(I256.checkedAdd(I256.MAX, I256.one))).toBe(true)
   })
   it("rejects invalid widths", () => {
-    expect(() => FixedInt.make({ name: "X", bits: 33, signed: true })).toThrow()
-    expect(() => FixedInt.makeBig({ name: "X", bits: 0, signed: true })).toThrow()
+    expect(() => FixedInt.make({ name: "X", bits: 33, signed: true })).toThrow(RangeError)
+    expect(() => FixedInt.makeBig({ name: "X", bits: 0, signed: true })).toThrow(RangeError)
   })
   it("convert", () => {
     expect(FixedInt.convert(U8)(I16.make(255))).toEqual(Option.some(255))

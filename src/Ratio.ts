@@ -188,7 +188,7 @@ export const limitDenominator: Operator<Ratio, bigint, Ratio> = operator((self: 
   const bound2 = reduce(p1, q1)
   const d1 = abs(sub(bound1, self))
   const d2 = abs(sub(bound2, self))
-  return Order_(d2, d1) <= 0 ? bound2 : bound1
+  return compare(d2, d1) <= 0 ? bound2 : bound1
 })
 
 const floorDiv = (n: bigint, d: bigint): bigint => {
@@ -439,7 +439,7 @@ export const toFixed: Operator<Ratio, number, string> = operator((self: Ratio, d
 // ordering
 // -----------------------------------------------------------------------------
 
-const Order_: Ord.Order<Ratio> = (a, b) => {
+const compare: Ord.Order<Ratio> = (a, b) => {
   const l = a.numer * b.denom
   const r = b.numer * a.denom
   return l < r ? -1 : l > r ? 1 : 0
@@ -449,7 +449,7 @@ const Order_: Ord.Order<Ratio> = (a, b) => {
  * @category ordering
  * @since 0.1.0
  */
-export const Order: Ord.Order<Ratio> = Order_
+export const Order: Ord.Order<Ratio> = compare
 
 /**
  * @category ordering
@@ -461,20 +461,20 @@ export const Equivalence: Eqv.Equivalence<Ratio> = (a, b) => a.numer === b.numer
  * @category ordering
  * @since 0.1.0
  */
-export const min: Operator<Ratio> = operator((a: Ratio, b: Ratio) => (Order_(b, a) < 0 ? b : a))
+export const min: Operator<Ratio> = operator((a: Ratio, b: Ratio) => (compare(b, a) < 0 ? b : a))
 
 /**
  * @category ordering
  * @since 0.1.0
  */
-export const max: Operator<Ratio> = operator((a: Ratio, b: Ratio) => (Order_(a, b) < 0 ? b : a))
+export const max: Operator<Ratio> = operator((a: Ratio, b: Ratio) => (compare(a, b) < 0 ? b : a))
 
 /**
  * @category ordering
  * @since 0.1.0
  */
 export const clamp = (self: Ratio, minimum: Ratio, maximum: Ratio): Ratio =>
-  Order_(self, minimum) < 0 ? minimum : Order_(maximum, self) < 0 ? maximum : self
+  compare(self, minimum) < 0 ? minimum : compare(maximum, self) < 0 ? maximum : self
 
 // -----------------------------------------------------------------------------
 // schemas
